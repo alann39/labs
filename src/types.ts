@@ -275,6 +275,8 @@ export interface OfficeEvent {
     | 'health' | 'connection'
     // A session's task list changed (server/tasks.js), or the snapshot's boards (src/taskBoard.ts)
     | 'task_board'
+    // Olympus (local-dev-team): Zeus's status.json adapter + gates + Agora
+    | 'status_update' | 'gate_waiting' | 'agora_message'
   agent?: Partial<Agent>
   agentId?: string
   status?: string
@@ -382,6 +384,51 @@ export interface OfficeEvent {
   boards?: TaskBoardInfo[]
   // connection: the WebSocket opened or closed — dispatched by useAgentSocket, not sent by the server
   socket?: 'open' | 'closed'
+  // Olympus: Zeus's run status (server/olympus.js), a gate waiting on the
+  // owner, and one Agora message — see the interfaces below
+  olympus?: OlympusStatus
+  gateWaiting?: { gate: string; docVersion?: string }
+  agoraMessage?: AgoraMessage
+}
+
+/**
+ * Olympus run status — what Zeus (Manager, Muse) writes to `status.json`
+ * on every state change. POSTed to /olympus/status or picked up by the
+ * server polling status.json, then broadcast as `status_update`.
+ */
+export interface OlympusStatus {
+  runId?: string
+  stage?: string
+  agent?: string
+  task?: string
+  files?: string[]
+  tickets?: string[]
+  gate?: string
+  approval?: string
+  agora?: AgoraMessage[]
+}
+
+/** One Agora message — the only way gods talk to each other. No DMs. */
+export interface AgoraMessage {
+  from: string
+  to: string
+  type: 'tanya' | 'info' | 'minta-review' | 'setuju' | 'tolak' | 'keputusan'
+  body: string
+  runId?: string
+  stage?: string
+  time?: string
+}
+
+/** A workflow gate: a HARD stop until the owner decides. */
+export type GateStatus = 'locked' | 'active' | 'waiting' | 'passed' | 'revisi' | 'stopped'
+
+export interface GateInfo {
+  id: string
+  label: string
+  mode: 'A' | 'B' | 'A/B'
+  status: GateStatus
+  /** The approval record for this gate, once decided (V1: recorded, executed via chat) */
+  decision?: { choice: 'Gas' | 'Revisi' | 'Stop'; at: string; docVersion?: string }
 }
 
 import { BOSS_CONFIG } from './config'
@@ -432,6 +479,6 @@ export const AGENT_CONFIGS: Record<string, { color: string; emoji: string; title
   'seo':                   { color: '#4caf50', emoji: '📊', title: 'SEO' },
   'gmail':                 { color: '#ea4335', emoji: '📧', title: 'Gmail' },
   'ios-simulator':         { color: '#a2aaad', emoji: '📱', title: 'iOS' },
-  'assistant':             { color: '#cc785c', emoji: '🤖', title: 'Claude' },
+  'assistant':             { color: '#4A3B6B', emoji: '⚡', title: 'Zeus · Manager' },
   'default':               { color: '#95a5a6', emoji: '👤', title: 'Worker' },
 }
