@@ -1,27 +1,37 @@
-/* ===== OLYMPUS — Gates + Agora + sound unlock + gate banner =====
-   Panels sit in the chat column under SlackChat (src/App.tsx). Colours
-   follow the dark meters panel so the column reads as one strip. */
+/* ===== OLYMPUS — Gates + Agora + sound + gate modal + fullscreen =====
+   Panels sit in the chat column under SlackChat (src/App.tsx).
+   They REUSE SlackChat's tokens (office.css .slack-panel / .slack-header /
+   .slack-msg): same background, same system font, same header padding,
+   same row hover — so Gates + Agora read as native panels, not pasted-on
+   cards. Do NOT reintroduce a separate mono/dark panel theme here. */
 
 .olympus-panel {
   flex-shrink: 0;
-  background: #15171a;
+  background: #1a1d21;
   border-left: 1px solid #35363a;
-  border-bottom: 1px solid #2b2e33;
-  color: #e6e6e6;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 11px;
+  border-bottom: 1px solid #35363a;
+  color: #e8e8e8;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  font-size: 12px;
   max-height: 220px;
   overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #35363a transparent;
 }
+
+.olympus-panel::-webkit-scrollbar { width: 4px; }
+.olympus-panel::-webkit-scrollbar-thumb { background: #35363a; border-radius: 2px; }
 
 .olympus-panel-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  padding: 6px 10px 4px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
+  gap: 6px;
+  padding: 8px 12px;
+  border-bottom: 1px solid #35363a;
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0;
 }
 
 .olympus-panel-hint {
@@ -30,31 +40,40 @@
   font-size: 10px;
 }
 
-/* --- Gates --- */
+/* --- Gates (rows mirror .slack-msg) --- */
 .gates-list {
   list-style: none;
   margin: 0;
-  padding: 0 10px 8px;
+  padding: 4px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .gate-row {
-  border-top: 1px solid #2b2e33;
-  padding: 5px 0;
+  padding: 3px 6px;
+  border-radius: 4px;
+}
+
+.gate-row:hover {
+  background: rgba(255, 255, 255, 0.03);
 }
 
 .gate-row.gate-waiting {
-  background: #2a2113;
+  background: rgba(201, 180, 138, 0.12);
 }
 
 .gate-row-top {
   display: flex;
-  align-items: center;
-  gap: 6px;
+  align-items: baseline;
+  gap: 5px;
   flex-wrap: wrap;
 }
 
 .gate-label {
+  font-size: 12px;
   font-weight: 700;
+  letter-spacing: 0.1px;
 }
 
 .gate-mode {
@@ -65,12 +84,14 @@
 .gate-status {
   margin-left: auto;
   font-size: 10px;
+  color: #8b8d91;
 }
 
 .gate-decision {
-  color: #9aa3b5;
+  color: #7a7c80;
   font-size: 10px;
-  padding-top: 2px;
+  font-style: italic;
+  padding-top: 1px;
 }
 
 .gate-actions {
@@ -80,29 +101,46 @@
 }
 
 .gate-btn {
-  border: 1px solid #35363a;
-  background: #1d2024;
-  color: #e6e6e6;
-  border-radius: 4px;
-  padding: 3px 10px;
+  border: 1px solid #3c3d41;
+  background: #222529;
+  color: #d1d2d3;
+  border-radius: 8px;
+  padding: 5px 12px;
   font: inherit;
+  font-size: 12px;
   cursor: pointer;
 }
 
 .gate-btn:hover {
-  border-color: #c9b48a;
+  border-color: #4a4b50;
 }
 
 .gate-gas {
-  background: #1e3a2a;
+  background: rgba(43, 172, 118, 0.15);
   border-color: #2bac76;
+  color: #7ee2b0;
 }
 
-/* --- Agora --- */
+.gate-revisi {
+  background: rgba(240, 180, 41, 0.12);
+  border-color: #f0b429;
+  color: #f5cf6b;
+}
+
+.gate-stop {
+  background: rgba(255, 95, 87, 0.12);
+  border-color: #ff5f57;
+  color: #ff9a94;
+}
+
+/* --- Agora (messages mirror .slack-msg) --- */
 .agora-list {
   list-style: none;
   margin: 0;
-  padding: 0 10px 8px;
+  padding: 4px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .agora-msg {
@@ -110,66 +148,78 @@
   width: 100%;
   text-align: left;
   background: transparent;
-  border: 1px solid transparent;
-  border-top: 1px solid #2b2e33;
+  border: none;
+  border-radius: 4px;
   color: inherit;
   font: inherit;
-  padding: 5px 4px;
+  padding: 3px 6px;
   cursor: pointer;
 }
 
 .agora-msg:hover {
-  border-color: #c9b48a;
+  background: rgba(255, 255, 255, 0.03);
 }
 
 .agora-msg.agora-selected {
-  background: #232830;
-  border-color: #c9b48a;
+  background: rgba(255, 255, 255, 0.05);
 }
 
 .agora-from-to {
   display: block;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.1px;
 }
 
 .agora-arrow {
   color: #8b8d91;
+  font-weight: 400;
 }
 
 .agora-type {
   display: inline-block;
   font-size: 10px;
-  padding: 1px 5px;
-  border-radius: 3px;
+  padding: 1px 6px;
+  border-radius: 7px;
+  border: 1px solid #3c3d41;
   margin: 3px 0;
-  background: #2c2f35;
+  background: rgba(139, 141, 145, 0.1);
+  color: #b5bac1;
 }
 
 .agora-keputusan {
-  background: #4a3b6b;
+  background: rgba(74, 59, 107, 0.6);
+  border-color: #4a3b6b;
   color: #fff;
 }
 
 .agora-tolak {
-  background: #4a1f1f;
+  background: rgba(255, 95, 87, 0.12);
+  border-color: #ff5f57;
+  color: #ff9a94;
 }
 
 .agora-body {
   display: block;
-  color: #cfd2d6;
+  font-size: 12px;
+  color: #cfd0d1;
+  line-height: 1.55;
   white-space: normal;
   word-break: break-word;
 }
 
 .agora-meta {
   display: block;
-  color: #8b8d91;
-  font-size: 10px;
-  padding-top: 2px;
+  color: #4e5157;
+  font-size: 9px;
+  letter-spacing: 0.2px;
+  padding-top: 1px;
 }
 
 .agora-empty {
-  padding: 6px 10px 10px;
+  padding: 6px 12px 10px;
   color: #8b8d91;
+  font-size: 12px;
 }
 
 /* --- Agora bubble above a character --- */
@@ -195,10 +245,10 @@
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
-  background: #2a2113;
+  background: rgba(201, 180, 138, 0.12);
   border: 1px solid #c9b48a;
   color: #ffe9b0;
-  font-family: 'JetBrains Mono', monospace;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
   font-size: 12px;
   padding: 7px 10px;
   margin-bottom: 6px;
@@ -208,21 +258,171 @@
   letter-spacing: 0.02em;
 }
 
-/* --- Sound unlock banner --- */
+/* --- Gate approval modal: centered, scrollable body, sticky footer --- */
+.gate-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.gate-modal {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 480px;
+  max-height: 90vh;
+  background: #1a1d21;
+  color: #e8e8e8;
+  border: 1px solid #35363a;
+  border-radius: 10px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  font-size: 12px;
+  overflow: hidden;
+}
+
+.gate-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid #35363a;
+  font-size: 13px;
+  font-weight: 900;
+  flex-shrink: 0;
+}
+
+.gate-modal-close {
+  background: transparent;
+  border: none;
+  color: #8b8d91;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 2px 6px;
+}
+
+.gate-modal-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px;
+  line-height: 1.55;
+  scrollbar-width: thin;
+  scrollbar-color: #35363a transparent;
+}
+
+.gate-modal-body p {
+  margin: 0 0 8px;
+  color: #cfd0d1;
+}
+
+.gate-modal-doc {
+  color: #8b8d91;
+}
+
+.gate-modal-choices {
+  margin: 0 0 8px;
+  padding-left: 18px;
+  color: #cfd0d1;
+}
+
+.gate-modal-note {
+  color: #7a7c80 !important;
+  font-style: italic;
+  font-size: 11px;
+}
+
+.gate-modal-footer {
+  flex-shrink: 0;
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  padding: 10px 12px;
+  border-top: 1px solid #35363a;
+  background: #1a1d21;
+}
+
+/* --- Sound row + unlock banner (Slack-like) --- */
+.sound-row {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 12px;
+  background: #1a1d21;
+  border-left: 1px solid #35363a;
+  border-bottom: 1px solid #35363a;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  font-size: 11px;
+  color: #b5bac1;
+}
+
+.sound-test-btn {
+  border: 1px solid #3c3d41;
+  background: #222529;
+  color: #d1d2d3;
+  border-radius: 8px;
+  padding: 4px 10px;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.sound-test-btn:hover {
+  border-color: #4a4b50;
+}
+
 .sound-unlock {
   flex-shrink: 0;
   width: 100%;
-  background: #1e2a22;
+  background: rgba(43, 172, 118, 0.12);
   border-left: 1px solid #35363a;
-  border-bottom: 1px solid #2b2e33;
-  color: #c9f0d8;
-  font-family: 'JetBrains Mono', monospace;
+  border-bottom: 1px solid #35363a;
+  color: #7ee2b0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
   font-size: 11px;
-  padding: 7px 10px;
+  padding: 7px 12px;
   cursor: pointer;
   text-align: left;
 }
 
 .sound-unlock:hover {
-  background: #243825;
+  background: rgba(43, 172, 118, 0.2);
+}
+
+/* --- Fullscreen: the app wrapper is fixed 1056x682 centered by default;
+   fullscreen makes it fill the viewport so office + panels grow. The
+   CSS-fallback class is used when native requestFullscreen is rejected
+   (iframe / Vercel preview). --- */
+.app-wrapper.app-fullscreen {
+  position: fixed;
+  inset: 0;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100dvh;
+  max-width: none;
+  max-height: none;
+  transform: none;
+  border-radius: 0;
+  border: none;
+  z-index: 9999;
+}
+
+@media (max-width: 430px) {
+  .gate-modal-overlay {
+    padding: 12px;
+  }
+
+  .gate-modal {
+    max-width: calc(100vw - 24px);
+  }
 }
