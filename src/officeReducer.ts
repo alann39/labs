@@ -669,7 +669,7 @@ function ensureClaude(state: OfficeState, sessionId: string, info: SessionFields
   const cfg = cfgFor(CLAUDE_ROLE)
   const r = spawnAgent(cur, {
     id, name: cfg.title, role: CLAUDE_ROLE,
-    task: project ? `Claude Code · ${project}` : 'Claude Code',
+    task: project ? `Zeus · ${project}` : 'Zeus',
     statusText: 'clocked in',
     sessionId, project, model: info.model,
     preferredSpotId: CLAUDE_HOME_SPOT,
@@ -677,7 +677,7 @@ function ensureClaude(state: OfficeState, sessionId: string, info: SessionFields
   let next = r.state
   if (info.main) next = applyMain(next, id, fromServerMain(info.main), env)
   const claude = next.agents.find(a => a.id === id)!
-  const effects: OfficeEffect[] = [...r.effects, claudeMsg(next, claude, `🤖 clocked in${project ? ` · ${project}` : ''}`)]
+  const effects: OfficeEffect[] = [...r.effects, claudeMsg(next, claude, `⚡ clocked in${project ? ` · ${project}` : ''}`)]
   return { state: next, effects, created: true }
 }
 
