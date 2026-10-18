@@ -421,7 +421,7 @@ export function formatPostmortem(summary: IncidentSummary, bystanders: string[] 
   }
 
   const who = summary.participants.length > 0 ? summary.participants : bystanders
-  parts.push(who.length > 0 ? `responders: ${who.slice(0, 6).join(', ')}` : 'responders: just the boss and Claude')
+  parts.push(who.length > 0 ? `responders: ${who.slice(0, 6).join(', ')}` : 'responders: just the boss and Zeus')
 
   // A named failure (a deploy, build or test signal) beats the bare tool name
   const cause = (summary.cause ? clip(summary.cause, 140) : null)
