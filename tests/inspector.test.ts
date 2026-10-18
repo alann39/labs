@@ -314,7 +314,7 @@ describe('GET /agents/main-<sessionId> — the session\'s own Claude', () => {
     expect(open.status).toBe(200)
     const body = open.body
     expect(body).toMatchObject({
-      id: `main-${sid}`, kind: 'main', name: 'Claude', role: 'assistant', state: 'waiting', status: 'editing parser.ts',
+      id: `main-${sid}`, kind: 'main', name: 'Zeus · Manager', role: 'assistant', state: 'waiting', status: 'editing parser.ts',
       sessionId: sid, project: 'proj', cwd: '/home/me/proj', model: 'claude-haiku-5-5', crons: 2,
       main: { state: 'waiting', waitingOn: 1, crons: 2, promptId: 'p1' },
       session: { id: sid, project: 'proj', source: 'startup', state: 'active', agentCount: 0, workingCount: 0 },

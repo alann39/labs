@@ -194,7 +194,7 @@ describe('the permission card on a read-only page', () => {
 
   it('shows which tool waits, offers no answer buttons, and points at the terminal', () => {
     const html = render(true)
-    expect(html).toContain('Claude wants to run Bash')
+    expect(html).toContain('Zeus wants to run Bash')
     expect(html).toContain('data-testid="permission-read-only"')
     expect(html).not.toContain('perm-btn')
   })

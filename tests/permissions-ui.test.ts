@@ -71,12 +71,12 @@ describe('reducePermissions', () => {
 
 describe('the words on a card', () => {
   it('permissionTitle', () => {
-    expect(permissionTitle({ toolName: 'Bash', summary: 'npm test' })).toBe('Claude wants to run Bash')
-    expect(permissionTitle({ toolName: 'Write', summary: 'probe.txt' })).toBe('Claude wants to write probe.txt')
-    expect(permissionTitle({ toolName: 'Edit', summary: 'App.tsx' })).toBe('Claude wants to edit App.tsx')
-    expect(permissionTitle({ toolName: 'Read', summary: 'Read' })).toBe('Claude wants to read Read')
-    expect(permissionTitle({ toolName: 'mcp__github__create_pull_request', summary: 'mcp__github__create_pull_request' })).toBe('Claude wants to use mcp__github__create_pull_request')
-    expect(permissionTitle({ toolName: 'WebFetch', summary: 'WebFetch' })).toBe('Claude wants to fetch WebFetch')
+    expect(permissionTitle({ toolName: 'Bash', summary: 'npm test' })).toBe('Zeus wants to run Bash')
+    expect(permissionTitle({ toolName: 'Write', summary: 'probe.txt' })).toBe('Zeus wants to write probe.txt')
+    expect(permissionTitle({ toolName: 'Edit', summary: 'App.tsx' })).toBe('Zeus wants to edit App.tsx')
+    expect(permissionTitle({ toolName: 'Read', summary: 'Read' })).toBe('Zeus wants to read Read')
+    expect(permissionTitle({ toolName: 'mcp__github__create_pull_request', summary: 'mcp__github__create_pull_request' })).toBe('Zeus wants to use mcp__github__create_pull_request')
+    expect(permissionTitle({ toolName: 'WebFetch', summary: 'WebFetch' })).toBe('Zeus wants to fetch WebFetch')
   })
 
   it('describeSuggestions says what "Allow & remember" would do, per PermissionUpdate type', () => {

@@ -283,7 +283,7 @@ describe('incident mode — formatting', () => {
     expect(card).toContain('no tool failures')
     expect(card).toContain('responders: Debugger, Tester')
     expect(card).toMatch(/root cause: .+/)
-    expect(formatPostmortem(t.exited!)).toContain('responders: just the boss and Claude')
+    expect(formatPostmortem(t.exited!)).toContain('responders: just the boss and Zeus')
   })
 
   it('posts an entry line per reason, stays quiet for relayed entries, and always posts the postmortem', () => {
