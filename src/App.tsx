@@ -52,8 +52,9 @@ import {
   olympusSnapshotSignature,
   simModeUrl,
   type OlympusFetchError,
+  type OlympusLiveAgent,
 } from './olympusLive'
-import type { AgoraMessage, GateInfo, OlympusStatus } from './types'
+import type { AgoraMessage, GateInfo, OlympusStatus, AgentState } from './types'
 
 // ---------------------------------------------------------------------------
 // Placement helper — loaded via ?helper query param
@@ -287,6 +288,72 @@ const App: React.FC = () => {
     const next = fn(cur.agents)
     if (next !== cur.agents) commit({ ...cur, agents: next })
   }, [commit])
+
+  // ---------------------------------------------------------------------------
+  // LIVE mode: render the run's gods from status.json agents[]
+  // ---------------------------------------------------------------------------
+  // The poll only fires this when the file actually changed (signature gate
+  // in applyOnce), so this never re-spawns or reshuffles on every tick.
+  // It reuses the SAME agent_spawned / agent_completed reducer path as ?sim —
+  // no second renderer, no duplicate characters:
+  // - each god spawns once (id 'live-<role>', deduped by the reducer),
+  //   walks in from the door and takes a free desk, like any new hire;
+  // - Zeus is the boss: he is already in the office (BOSS_ID), so his entry
+  //   only updates his line in place — never a duplicate Zeus;
+  // - gods the file no longer lists walk out the door (boss never leaves);
+  // - absent/empty agents[] = old behavior: boss only, the single `agent`
+  //   field stays display-only in the Run panel.
+  const WALK_STATES: AgentState[] = ['new-hire', 'walking-to-desk', 'walking-to-manager', 'talking-to-manager']
+
+  const syncLiveAgents = useCallback((liveAgents: OlympusLiveAgent[]) => {
+    const handle = handleEventRef.current
+    if (!handle) return
+    const current = agentsRef.current
+    const wantIds = new Set<string>()
+    for (const entry of liveAgents) {
+      const agentId = entry.isBoss ? BOSS_ID : entry.agentId
+      wantIds.add(agentId)
+      const cfg = AGENT_CONFIGS[entry.role] ?? AGENT_CONFIGS['default']
+      const existing = current.find(a => a.id === agentId)
+      if (!existing) {
+        if (entry.isBoss) continue // boss is always in the office from init
+        // NOTE: OfficeEvent.agent is Partial<Agent> (no `status`), but the
+        // reducer's SpawnFields accepts `status` → pendingStatus, applied as
+        // the arrival line when the new hire reaches its desk (C13). The cast
+        // is deliberate: without it every god would sit down with a random
+        // workMessage() instead of the run's line.
+        handle({
+          type: 'agent_spawned',
+          agent: {
+            id: agentId,
+            name: cfg.title,
+            role: entry.role,
+            task: entry.task,
+            status: entry.statusText,
+            statusText: entry.statusText,
+          } as Partial<Agent>,
+        })
+        continue
+      }
+      // Update in place. An agent mid-walk keeps walking — only its task
+      // line changes, so a fresh spawn is never yanked out of its entrance.
+      const midWalk = WALK_STATES.includes(existing.state)
+      updateAgents(prev => prev.map(a => a.id !== agentId ? a : {
+        ...a,
+        task: entry.task ?? a.task,
+        statusText: entry.statusText,
+        ...(midWalk ? {} : { state: entry.agentState }),
+      }))
+    }
+    for (const a of current) {
+      if (!a.id.startsWith('live-') || wantIds.has(a.id)) continue
+      if (a.state === 'completed') continue
+      handle({ type: 'agent_completed', agentId: a.id, result: 'tugas selesai — keluar kantor' })
+    }
+  }, [updateAgents])
+  // The poll effect below has [] deps; the ref keeps it on the latest closure.
+  const syncLiveAgentsRef = useRef(syncLiveAgents)
+  syncLiveAgentsRef.current = syncLiveAgents
 
   // Timers owned by this mount — cleared on unmount so nothing fires afterwards
   const timersRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set())
@@ -544,6 +611,9 @@ const App: React.FC = () => {
         }
         setLiveRunActive(snapshot.runActive)
         setLiveUpdatedAt(snapshot.updatedAt ?? null)
+        // LIVE gods: spawn/update/remove office characters from agents[].
+        // Absent/empty agents[] = old behavior (boss only), never a crash.
+        if (snapshot.agents !== undefined) syncLiveAgentsRef.current(snapshot.agents)
         setLiveConnected(true)
       } catch (err) {
         if (cancelled) return
