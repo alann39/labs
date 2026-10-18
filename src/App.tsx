@@ -44,6 +44,7 @@ import { dispatchTaskBoards } from './taskBoard'
 import GatesPanel, { initialGates } from './components/GatesPanel'
 import AgoraPanel, { AGORA_SEED } from './components/AgoraPanel'
 import { parseSlashCommand, slashReply, type SlashSnapshot } from './slashCommands'
+import { gateNotifyKey, shouldPlayGateNotification } from './gateNotify'
 import {
   fetchOlympusStatus,
   liveModeUrl,
@@ -644,10 +645,23 @@ const App: React.FC = () => {
     setOfficeMinimized(false)
   }, [])
 
-  // --- Gate approval modal (centered, scrollable) ----------------------
+  // --- Gate approval modal (centered, scrollable) + waiting notification --
   const [showGateModal, setShowGateModal] = useState(false)
+  // dogfood-001: the notification sound fires exactly once per null →
+  // active transition of gateWaiting (the banner above is the
+  // always-visible part). playNotification() is safe when audio is
+  // locked or muted: it stays silent and never throws.
+  const notifiedGateKeyRef = useRef<string | null>(null)
   useEffect(() => {
-    if (gateWaiting) setShowGateModal(true)
+    if (gateWaiting) {
+      setShowGateModal(true)
+      if (shouldPlayGateNotification(notifiedGateKeyRef.current, gateWaiting)) {
+        notifiedGateKeyRef.current = gateNotifyKey(gateWaiting)
+        sfx.playNotification()
+      }
+    } else {
+      notifiedGateKeyRef.current = null
+    }
   }, [gateWaiting])
 
   // ?sim demo: Gate 0.5 waits for approval 10 s after load, so the
