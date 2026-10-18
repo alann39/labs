@@ -39,6 +39,27 @@ export const SLASH_HELP =
   '/all-clear — matikan mode incident\n' +
   '/help — daftar perintah ini'
 
+/** The slash-menu command list (kept in sync with SLASH_HELP). */
+export const SLASH_COMMANDS = ['/status', '/agents', '/help', '/incident', '/all-clear'] as const
+
+/**
+ * Commands matching a bare "/..." input word (prefix filter). Returns [] when
+ * the input is not a bare slash word (plain chat, or a command with args —
+ * the menu closes and Enter sends the line as typed).
+ */
+export function filterSlashCommands(input: string): string[] {
+  if (!input.startsWith('/')) return []
+  if (/\s/.test(input)) return []
+  const prefix = input.toLowerCase()
+  return SLASH_COMMANDS.filter(c => c.startsWith(prefix))
+}
+
+/** Move the menu highlight by delta with wrap-around (last → first, first → last). */
+export function moveSlashHighlight(current: number, delta: 1 | -1, count: number): number {
+  if (count <= 0) return 0
+  return (current + delta + count) % count
+}
+
 /** The command word of a chat line, or null when it is not a slash command. */
 export function parseSlashCommand(text: string): string | null {
   const trimmed = text.trim()
