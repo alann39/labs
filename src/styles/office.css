@@ -1046,6 +1046,7 @@
   font-size: 10px;
   color: #7a7c80;
   font-style: italic;
+  white-space: pre-wrap; /* Why: multi-line slash-command replies (/help, /status) keep their line breaks */
 }
 
 /* ===== SLACK INPUT ===== */
