@@ -118,3 +118,71 @@ describe('olympusSnapshotSignature', () => {
     expect(olympusSnapshotSignature('abc')).not.toBe(olympusSnapshotSignature('abd'))
   })
 })
+
+describe('parseOlympusStatusFile — agents[]', () => {
+  const EIGHT = [
+    { god: 'Zeus', state: 'working', task: 'Menjalankan run' },
+    { god: 'Athena', state: 'done', task: 'Spec selesai' },
+    { god: 'Apollo', state: 'idle', task: 'Menunggu arah' },
+    { god: 'Hephaestus', state: 'working', task: 'Membangun panel' },
+    { god: 'Hades', state: 'standby' },
+    { god: 'Argus', state: 'reviewing', task: 'QC build' },
+    { god: 'Ares', state: 'idle', task: 'Security siap' },
+    { god: 'Hermes', state: 'standby', task: 'Menunggu ship' },
+  ]
+  it('parses 8 gods with states mapped to office AgentState', () => {
+    const s = parseOlympusStatusFile({ runId: 'r', agents: EIGHT })
+    expect(s!.agents).toHaveLength(8)
+    const byRole = Object.fromEntries(s!.agents!.map(a => [a.role, a]))
+    expect(byRole.zeus.isBoss).toBe(true)
+    expect(byRole.zeus.agentId).toBe('live-zeus')
+    expect(byRole.athena.agentId).toBe('live-athena')
+    expect(byRole.hephaestus.agentState).toBe('working')
+    expect(byRole.hephaestus.statusText).toBe('Membangun panel')
+    expect(byRole.argus.agentState).toBe('working') // reviewing → working
+    expect(byRole.argus.statusText).toBe('reviewing — QC build')
+    expect(byRole.athena.agentState).toBe('idle') // done → idle
+    expect(byRole.athena.statusText).toBe('✅ Spec selesai')
+    expect(byRole.hades.statusText).toBe('standby') // no task → state word
+    expect(byRole.zeus.god).toBe('Zeus')
+  })
+  it('god matching is case-insensitive; unknown gods are skipped', () => {
+    const s = parseOlympusStatusFile({
+      runId: 'r',
+      agents: [
+        { god: 'ATHENA', state: 'working', task: 'x' },
+        { god: 'Thor', state: 'working', task: 'x' },
+        { god: '', state: 'working' },
+        { god: 'athena', state: 'idle', task: 'duplikat' },
+        'bukan-record',
+      ],
+    })
+    expect(s!.agents).toHaveLength(1) // only ATHENA; Thor skipped, dup skipped
+    expect(s!.agents![0].role).toBe('athena')
+    expect(s!.agents![0].god).toBe('Athena')
+  })
+  it('unknown state falls back to idle; task truncated to 60 chars', () => {
+    const s = parseOlympusStatusFile({
+      runId: 'r',
+      agents: [{ god: 'Hades', state: 'meditating', task: 'x'.repeat(100) }],
+    })
+    expect(s!.agents![0].agentState).toBe('idle')
+    expect(s!.agents![0].task).toHaveLength(60)
+    expect(s!.agents![0].statusText).toHaveLength(60)
+  })
+  it('missing agents → undefined (old behavior); empty array → undefined', () => {
+    expect(parseOlympusStatusFile({ runId: 'r' })!.agents).toBeUndefined()
+    expect(parseOlympusStatusFile({ runId: 'r', agents: [] })!.agents).toBeUndefined()
+    expect(parseOlympusStatusFile({ runId: 'r', agents: [{ god: 'Thor' }] })!.agents).toBeUndefined()
+  })
+  it('a file with only a valid agents array counts as live identity', () => {
+    const s = parseOlympusStatusFile({ agents: [{ god: 'Zeus', state: 'idle' }] })
+    expect(s).not.toBeNull()
+    expect(s!.agents).toHaveLength(1)
+  })
+  it('the single `agent` field is untouched (backward compatible)', () => {
+    const s = parseOlympusStatusFile({ runId: 'r', agent: 'Hephaestus', agents: EIGHT })
+    expect(s!.olympus.agent).toBe('Hephaestus')
+    expect(s!.agents).toHaveLength(8)
+  })
+})

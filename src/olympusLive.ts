@@ -22,7 +22,7 @@
  * so Live and WS-local render identically. It never touches the DOM.
  */
 
-import type { AgoraMessage, GateInfo, GateStatus, OlympusStatus } from './types'
+import type { AgoraMessage, GateInfo, GateStatus, OlympusStatus, AgentState } from './types'
 import { GATE_DEFS } from './components/GatesPanel'
 
 /** Where the live run status lives (public repo, no auth). */
@@ -110,6 +110,10 @@ export interface OlympusLiveSnapshot {
   agora?: AgoraMessage[]
   /** Present only when the file has a `gates` array with a known gate. */
   gates?: GateInfo[]
+  /** Present only when the file has a valid, non-empty `agents` array.
+   *  Absent/empty = old behavior: office shows the boss + the single
+   *  `agent` field is display-only (Run panel), no characters spawned. */
+  agents?: OlympusLiveAgent[]
   /** True when the file carries a `gate` key at all (waiting / null / string). */
   hasGateKey: boolean
   /** The gate waiting on the owner, or null when no gate is waiting. */
@@ -117,6 +121,84 @@ export interface OlympusLiveSnapshot {
   /** false = this file is the LAST state of a finished run. null = unstated. */
   runActive: boolean | null
   updatedAt?: string
+}
+
+/**
+ * The 8 gods, as role keys (ROLE_TO_CHAR / AGENT_CONFIGS in the bundle).
+ * status.json uses `{ god, state, task }`; god matches case-insensitively.
+ */
+export const LIVE_GODS = [
+  'zeus', 'athena', 'apollo', 'hephaestus', 'hades', 'argus', 'ares', 'hermes',
+] as const
+export type LiveGod = (typeof LIVE_GODS)[number]
+
+export const LIVE_GOD_DISPLAY: Record<LiveGod, string> = {
+  zeus: 'Zeus', athena: 'Athena', apollo: 'Apollo', hephaestus: 'Hephaestus',
+  hades: 'Hades', argus: 'Argus', ares: 'Ares', hermes: 'Hermes',
+}
+
+/**
+ * status.json agent states → the office's AgentState. `reviewing` (QC) and
+ * `done` have no direct office state, so they map to the closest visual:
+ * reviewing reads as working, done reads as idle with a ✅ status line.
+ * Unknown states fall back to idle — never crash, never invent a state.
+ */
+const LIVE_STATE_TO_AGENT_STATE: Record<string, AgentState> = {
+  working: 'working',
+  idle: 'idle',
+  reviewing: 'working',
+  done: 'idle',
+  standby: 'idle',
+}
+
+/** One god's live presence, cleaned and ready for the office to render. */
+export interface OlympusLiveAgent {
+  /** Role key for sprite/config lookup ('athena', 'hephaestus', …). */
+  role: LiveGod
+  /** Display name ('Athena'). */
+  god: string
+  /** Office agent id: 'live-<role>'. Zeus is the boss — the caller maps him
+   *  to the existing BOSS_ID instead of spawning a duplicate. */
+  agentId: string
+  isBoss: boolean
+  agentState: AgentState
+  /** Short task line (≤60 chars), may be undefined. */
+  task?: string
+  /** The status line shown under the character. */
+  statusText: string
+}
+
+function cleanLiveAgents(v: unknown): OlympusLiveAgent[] | undefined {
+  if (!Array.isArray(v)) return undefined
+  const out: OlympusLiveAgent[] = []
+  const seen = new Set<LiveGod>()
+  for (const a of v) {
+    if (!isRecord(a)) continue
+    const godRaw = cleanStr(a.god, 100)
+    if (!godRaw) continue
+    const role = LIVE_GODS.find(g => g === godRaw.toLowerCase())
+    if (!role || seen.has(role)) continue // unknown god → skip; no duplicates
+    seen.add(role)
+    const stateRaw = typeof a.state === 'string' ? a.state.toLowerCase() : ''
+    const agentState = LIVE_STATE_TO_AGENT_STATE[stateRaw] ?? 'idle'
+    const task = cleanStr(a.task, 60)
+    let statusText: string
+    if (stateRaw === 'reviewing') statusText = task ? `reviewing — ${task}` : 'reviewing…'
+    else if (stateRaw === 'done') statusText = task ? `✅ ${task}` : 'done ✅'
+    else if (stateRaw === 'working') statusText = task ?? 'working'
+    else if (stateRaw === 'standby') statusText = task ?? 'standby'
+    else statusText = task ?? 'idle'
+    out.push({
+      role,
+      god: LIVE_GOD_DISPLAY[role],
+      agentId: `live-${role}`,
+      isBoss: role === 'zeus',
+      agentState,
+      task,
+      statusText,
+    })
+  }
+  return out.length > 0 ? out : undefined
 }
 
 /**
@@ -165,16 +247,19 @@ export function parseOlympusStatusFile(parsed: unknown): OlympusLiveSnapshot | n
 
   const runActive = typeof parsed.runActive === 'boolean' ? parsed.runActive : null
   const updatedAt = cleanStr(parsed.updatedAt, 200)
+  const agents = cleanLiveAgents(parsed.agents)
 
   // A file with no run identity and no messages and no gate is not live data.
   const hasIdentity = runId !== undefined || stage !== undefined || agent !== undefined
     || task !== undefined || (agora !== undefined && agora.length > 0) || gateWaiting !== null
+    || (agents !== undefined && agents.length > 0)
   if (!hasIdentity) return null
 
   return {
     olympus,
     agora,
     gates: cleanGates(parsed.gates),
+    agents,
     hasGateKey,
     gateWaiting,
     runActive,
