@@ -25,6 +25,58 @@ class FakeAudioContext {
   createGain() { return { gain: { value: 0, exponentialRampToValueAtTime: vi.fn(), setTargetAtTime: vi.fn() }, connect: vi.fn() } }
 }
 
+describe('sounds.ts unlock (no-sound-at-all bug)', () => {
+  class FakeSuspendedContext extends FakeAudioContext {
+    state = 'suspended'
+    resume = vi.fn(async () => { this.state = 'running' })
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers()
+    FakeAudioContext.instances = []
+    ;(globalThis as any).AudioContext = FakeSuspendedContext
+    vi.resetModules()
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+    delete (globalThis as any).AudioContext
+  })
+
+  it('playAmbientHum on a suspended context does NOT mark the hum running, so unlock retries it', async () => {
+    const sfx = await import('../src/sounds')
+    expect(sfx.getAudioState()).toBe('suspended')
+    sfx.playAmbientHum() // suspended: no oscillator, flag stays clear
+    const ctx = FakeAudioContext.instances[0] as unknown as FakeSuspendedContext
+    expect(ctx.oscillators).toHaveLength(0)
+
+    const ok = await sfx.resumeAudio()
+    expect(ok).toBe(true)
+    expect(sfx.getAudioState()).toBe('running')
+    sfx.playAmbientHum() // now it really starts
+    expect(ctx.oscillators).toHaveLength(1)
+  })
+
+  it('resumeAudio reports false while muted', async () => {
+    const sfx = await import('../src/sounds')
+    sfx.setVolume(0)
+    expect(await sfx.resumeAudio()).toBe(false)
+    expect(sfx.getAudioState()).toBe('muted')
+  })
+
+  it('resumeAudio reports false when resume leaves the context suspended', async () => {
+    // Swap in a fake whose resume() is a no-op (stays suspended).
+    class FakeStuckContext extends FakeAudioContext {
+      state = 'suspended'
+      resume = vi.fn(async () => { /* stays suspended */ })
+    }
+    ;(globalThis as any).AudioContext = FakeStuckContext
+    vi.resetModules()
+    const sfx = await import('../src/sounds')
+    expect(await sfx.resumeAudio()).toBe(false)
+    expect(sfx.getAudioState()).toBe('suspended')
+  })
+})
+
 describe('sounds.ts ambient hum (C46)', () => {
   beforeEach(() => {
     vi.useFakeTimers()
