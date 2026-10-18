@@ -1853,6 +1853,17 @@ const App: React.FC = () => {
             }}
           />
 
+          {/* Door sign overlay: the room art (public/rooms/office-day.png / office-night.png)
+              has a "CLAUDE" name plate baked into the door. Cover it with a DOM label
+              reading "ZEUS" — boss name on the door, same semantics as the original sign.
+              Hidden in Dunder Mifflin theme, whose art has no such sign in this spot. */}
+          {theme !== 'office' && (
+            <div className="door-sign-overlay" aria-hidden="true">
+              <span className="door-sign-icon">⚡</span>
+              <span>ZEUS</span>
+            </div>
+          )}
+
           {/* Furniture — apply interactive state overrides */}
           <FurnitureRenderer onItemClick={handleFurnitureClick} items={furnitureItems} />
 

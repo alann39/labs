@@ -164,6 +164,46 @@
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
 }
 
+/* ===== DOOR SIGN OVERLAY ===== */
+/* The room art (public/rooms/office-day.png / office-night.png) has a "CLAUDE"
+   name plate baked into the door. A DOM label reading "ZEUS" covers it — boss
+   name on the door, same semantics as the original sign. Position in % of the
+   room container: the container shares the art's aspect ratio, so image %
+   == container %. The sign is a parallelogram (vertical sides, top/bottom
+   edges slanted ~12°), hence skewY, not rotate. */
+.door-sign-overlay {
+  position: absolute;
+  left: 65.85%;
+  top: 27.9%;
+  width: 6.96%;
+  height: 2.7%;
+  transform: skewY(12deg);
+  transform-origin: top left;
+  background: #262c40;
+  border: 1px solid rgba(230, 232, 240, 0.85);
+  border-radius: 1px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3em;
+  padding: 0 0.2em;
+  color: #f2f3f7;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-weight: 800;
+  font-size: clamp(6px, 1.1vw, 13px);
+  letter-spacing: 0.08em;
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.door-sign-overlay .door-sign-icon {
+  color: #f5a623;
+  font-size: 0.85em;
+}
+
 /* ===== DOOR HOTSPOTS ===== */
 .room-door-hotspot {
   position: absolute;
