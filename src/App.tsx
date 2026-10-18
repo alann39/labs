@@ -488,7 +488,6 @@ const App: React.FC = () => {
   // AudioContext starts suspended until a user gesture (browser autoplay
   // policy): the sound-unlock banner shows until the first interaction
   const [audioUnlocked, setAudioUnlocked] = useState(() => sfx.isAudioUnlocked())
-  const [audioState, setAudioState] = useState<sfx.AudioState>(() => sfx.getAudioState())
 
   // Verify the resume really landed: the old code hid the banner
   // unconditionally, so the UI claimed audio was on while the context
@@ -497,17 +496,7 @@ const App: React.FC = () => {
     const ok = await sfx.resumeAudio()
     if (ok && !sfx.isMuted()) sfx.playAmbientHum()
     setAudioUnlocked(sfx.isAudioUnlocked())
-    setAudioState(sfx.getAudioState())
     return ok
-  }, [])
-
-  // "Test Suara": await the resume, then ring the loud test bell, so
-  // the user can verify sound without waiting for an office event.
-  const testSound = useCallback(async () => {
-    const ok = await sfx.playTestBell()
-    if (ok && !sfx.isMuted()) sfx.playAmbientHum()
-    setAudioUnlocked(sfx.isAudioUnlocked())
-    setAudioState(sfx.getAudioState())
   }, [])
 
   useEffect(() => {
@@ -1571,7 +1560,6 @@ const App: React.FC = () => {
       setVolume(sfx.getVolume())
       if (!nowMuted) sfx.playAmbientHum()
       setAudioUnlocked(sfx.isAudioUnlocked())
-      setAudioState(sfx.getAudioState())
     })
   }, [])
 
@@ -1582,7 +1570,6 @@ const App: React.FC = () => {
       setMuted(v === 0)
       if (v > 0) sfx.playAmbientHum()
       setAudioUnlocked(sfx.isAudioUnlocked())
-      setAudioState(sfx.getAudioState())
     })
   }, [])
 
@@ -1884,14 +1871,6 @@ const App: React.FC = () => {
 
       <AgentCard agentId={inspectedId} agent={agents.find(a => a.id === inspectedId)} sessions={sessions} onClose={() => setInspectedId(null)} />
       <div className="chat-column">
-      <div className="sound-row">
-        <span className="sound-status" data-testid="audio-state">
-          Audio: {muted ? 'muted' : audioState === 'running' ? 'on 🔊' : audioState === 'suspended' ? 'off — klik Test Suara' : audioState}
-        </span>
-        <button type="button" className="sound-test-btn" onClick={() => { void testSound() }} title="Resume audio + bunyikan bell sekali untuk verifikasi">
-          🔔 Test Suara
-        </button>
-      </div>
       {!audioUnlocked && (
         <button type="button" className="sound-unlock" onClick={() => { void unlockAudio() }}>
           🔊 Klik untuk aktifin suara — bunyi kantor mulai setelah klik pertama
