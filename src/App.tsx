@@ -1826,7 +1826,7 @@ const App: React.FC = () => {
             className={`title-bar-live-btn${!isSimMode ? ' is-active' : ''}`}
             onClick={switchToLive}
             disabled={!isSimMode}
-            title={isSimMode ? 'Pindah ke LIVE (data run beneran dari status.json)' : 'LIVE — data run beneran dari status.json'}
+            title={isSimMode ? 'Pindah ke LIVE (data run beneran dari status.json, update tiap 5 detik)' : 'LIVE — data run beneran dari status.json (update tiap 5 detik)'}
           >
             <span className={`live-dot${!isSimMode && liveConnected ? ' live-on' : ''}`} />
             LIVE{!isSimMode && liveRunActive === false ? ' · Run terakhir' : ''}
@@ -1836,7 +1836,7 @@ const App: React.FC = () => {
             className={`title-bar-live-btn${isSimMode ? ' is-active' : ''}`}
             onClick={switchToSim}
             disabled={isSimMode}
-            title={isSimMode ? 'SIM — demo seed' : 'Pindah ke SIM (demo seed)'}
+            title={isSimMode ? 'SIM — mode demo, data simulasi bukan run beneran' : 'Pindah ke SIM (mode demo, data simulasi bukan run beneran)'}
           >
             SIM
           </button>
