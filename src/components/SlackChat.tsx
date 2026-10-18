@@ -3,6 +3,7 @@ import { ROLE_TO_CHAR } from '../config'
 import { getSpritePath, useTheme, themedDisplayName } from '../theme'
 import IncidentBadge from './IncidentBadge'
 import { postSetting } from '../permissions'
+import { filterSlashCommands, moveSlashHighlight } from '../slashCommands'
 import { officeHttpBase } from '../serverUrl'
 
 export function getAvatarSrc(role: string, agentId?: string): string {
@@ -75,8 +76,13 @@ const SlackChat: React.FC<SlackChatProps> = ({ messages, muted, volume, onToggle
   const theme = useTheme()
   void theme // Why: subscribe so avatars re-render when the theme changes
   const bodyRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
   const [inputText, setInputText] = useState('')
   const [showSlashHint, setShowSlashHint] = useState(false)
+  // Slash menu: which filtered command is highlighted (keyboard nav / hover)
+  const [slashIndex, setSlashIndex] = useState(0)
+  const slashFiltered = filterSlashCommands(inputText)
+  const slashOpen = showSlashHint && inputText.startsWith('/') && !/\s/.test(inputText)
   const [emojiPickerMsgId, setEmojiPickerMsgId] = useState<number | null>(null)
   const pickerRef = useRef<HTMLDivElement>(null)
   const onSendRef = useRef(onSendMessage)
@@ -103,7 +109,17 @@ const SlackChat: React.FC<SlackChatProps> = ({ messages, muted, volume, onToggle
     setEmojiPickerMsgId(null)
   }, [onReaction])
 
-  // Prompt-logging level — read-only in the UI (see logPromptsHint); silent when the route is missing.
+  // Slash menu: run a command through the same path as typing it + Enter
+  // (onSendMessage → App.handleSendMessage answers client-side). Closes the
+  // menu and puts focus back in the chat input.
+  const submitSlash = useCallback((cmd: string) => {
+    onSendRef.current?.(cmd)
+    setInputText('')
+    setShowSlashHint(false)
+    setSlashIndex(0)
+    // Focus after the click/mouse-down round-trip, so typing can continue
+    setTimeout(() => inputRef.current?.focus(), 0)
+  }, [])
   // The same GET /settings also says whether permission dialogs may be answered here.
   const [logPrompts, setLogPrompts] = useState<string | null>(null)
   const [answerHere, setAnswerHere] = useState<boolean | null>(null)
@@ -328,29 +344,61 @@ const SlackChat: React.FC<SlackChatProps> = ({ messages, muted, volume, onToggle
       </div>
 
       <div className="slack-input-wrap">
-        {showSlashHint && (
-          <div className="slack-slash-hint">
-            <span className="slack-slash-cmd">/status</span>
-            <span className="slack-slash-cmd">/agents</span>
-            <span className="slack-slash-cmd">/help</span>
-            <span className="slack-slash-cmd">/incident</span>
-            <span className="slack-slash-cmd">/all-clear</span>
+        {slashOpen && (
+          <div className="slack-slash-hint" id="slash-menu" role="listbox" aria-label="Perintah chat">
+            {slashFiltered.length > 0 ? (
+              slashFiltered.map((cmd, i) => (
+                <button
+                  key={cmd}
+                  type="button"
+                  id={`slash-opt-${i}`}
+                  role="option"
+                  aria-selected={i === slashIndex}
+                  className={`slack-slash-cmd${i === slashIndex ? ' selected' : ''}`}
+                  // onMouseDown fires before input blur: preventDefault keeps
+                  // focus (and the menu) alive so the click still registers.
+                  onMouseDown={e => e.preventDefault()}
+                  onMouseEnter={() => setSlashIndex(i)}
+                  onClick={() => submitSlash(cmd)}
+                >{cmd}</button>
+              ))
+            ) : (
+              <span className="slack-slash-none">Tidak ada command — ketik /help</span>
+            )}
           </div>
         )}
         <div className="slack-input-bar">
           <input
+            ref={inputRef}
             type="text"
             className="slack-input-field"
             placeholder="Message #office-general"
             value={inputText}
+            aria-expanded={slashOpen}
+            aria-controls="slash-menu"
+            aria-activedescendant={slashOpen && slashFiltered.length > 0 ? `slash-opt-${slashIndex}` : undefined}
             onChange={e => {
               const val = e.target.value
               setInputText(val)
-              setShowSlashHint(val === '/')
+              // Menu only while typing a bare "/..." word (no space/args yet)
+              setShowSlashHint(val.startsWith('/'))
+              setSlashIndex(0)
             }}
             onKeyDown={e => {
               if (e.key === 'Escape') {
+                // Close the menu only — keep the typed text, as before
                 setShowSlashHint(false)
+                return
+              }
+              if (slashOpen && slashFiltered.length > 0 && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+                e.preventDefault()
+                setSlashIndex(i => moveSlashHighlight(i, e.key === 'ArrowDown' ? 1 : -1, slashFiltered.length))
+                return
+              }
+              if (slashOpen && slashFiltered.length > 0 && (e.key === 'Enter' || e.key === 'Tab')) {
+                // Run the highlighted menu item, same path as a manual command
+                e.preventDefault()
+                submitSlash(slashFiltered[slashIndex] ?? slashFiltered[0])
                 return
               }
               if (e.key === 'Enter' && inputText.trim()) {
