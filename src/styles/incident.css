@@ -91,14 +91,19 @@
   to   { transform: translate(-50%, -50%) rotate(360deg); }
 }
 
-/* Status page on the wall TV */
+/* Status page on the wall TV.
+   The TV art is drawn in isometric perspective (its face slants +26.5°,
+   measured from the art's top edge). The old hard red drop-shadow made
+   the whole box read as a glowing sticker floating OVER the wall, so it
+   is now a soft dark contact shadow + a faint red rim: the TV sits ON
+   the wall instead of hovering above it. */
 .incident-tv {
   position: absolute;
   width: 8%;
   transform: translate(-50%, -50%);
   z-index: 101;
   pointer-events: none;
-  filter: drop-shadow(0 0 6px rgba(255, 40, 40, 0.8));
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.45)) drop-shadow(0 0 2px rgba(255, 60, 60, 0.25));
   animation: incidentTvFlicker 2.4s ease-in-out infinite;
 }
 .incident-tv img {
@@ -108,20 +113,23 @@
   image-rendering: pixelated;
 }
 .incident-tv-label {
+  /* The label lies ON the TV face, not under the box: it sits inside the
+     face (bottom 20%) and is rotated +26.5° to follow the face plane
+     (measured from the art), instead of flat horizontal text floating
+     below the box. Glow removed — flat glowing text was the "sticker". */
   position: absolute;
   left: 50%;
-  bottom: 12%;
-  transform: translateX(-50%);
+  bottom: 20%;
+  transform: translateX(-50%) rotate(26.5deg);
   font-family: 'Press Start 2P', monospace;
   font-size: 5px;
-  color: #ff4d4d;
+  color: #ff6b6b;
   letter-spacing: 1px;
-  text-shadow: 0 0 3px #ff0000;
   white-space: nowrap;
 }
 @keyframes incidentTvFlicker {
   0%, 100% { opacity: 1; }
-  50%      { opacity: 0.85; }
+  50%      { opacity: 0.94; }
 }
 
 /* Art slots that stay empty until the real PNGs land (see incidentAssets.ts) */
@@ -142,13 +150,16 @@
   image-rendering: pixelated;
 }
 
-/* "Days since last incident" sign on the left wall — digit drawn live over the art */
+/* "Days since last incident" sign on the left wall — digit drawn live over the art.
+   A soft contact shadow grounds it on the wall (it used to float with no
+   shadow at all, which read as a pasted cut-out). */
 .days-sign {
   position: absolute;
   width: 7.2%;
   transform: translate(-50%, -50%);
   z-index: 15;
   pointer-events: auto;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.35));
 }
 .days-sign img {
   width: 100%;
@@ -157,6 +168,11 @@
   image-rendering: pixelated;
 }
 .days-sign-digits {
+  /* The live digit sits exactly over the digit baked into the art.
+     The old opaque black box (#0d0d12) over the sign face was a visible
+     rectangular patch; the digit is now transparent so only the red
+     glyph shows. Skew -27° matches the sign face slant measured from
+     the art (top edge -27.1°). Glow removed — the art digit has none. */
   position: absolute;
   right: 4%;
   top: 15%;
@@ -165,13 +181,12 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #0d0d12;
+  background: transparent;
   color: #ff3b3b;
   font-family: 'Press Start 2P', monospace;
   font-size: 7px;
   line-height: 1;
-  text-shadow: 0 0 3px rgba(255, 59, 59, 0.8);
-  transform: skewY(-24deg);
+  transform: skewY(-27deg);
 }
 .days-sign-digits.two   { font-size: 5px; }
 .days-sign-digits.three { font-size: 4px; }

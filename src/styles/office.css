@@ -54,11 +54,71 @@
 }
 
 .title-bar-dot {
-  width: 10px;
-  height: 10px;
+  width: 12px;
+  height: 12px;
+  border: none;
   border-radius: 50%;
   -webkit-app-region: no-drag;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  flex-shrink: 0;
+}
+.title-bar-dot-symbol {
+  font-size: 9px;
+  line-height: 1;
+  color: rgba(0, 0, 0, 0.65);
+  opacity: 0;
+}
+.title-bar-dot:hover .title-bar-dot-symbol,
+.title-bar-dot:focus-visible .title-bar-dot-symbol {
+  opacity: 1;
+}
+.title-bar-dot:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.6);
+  outline-offset: 1px;
+}
+.title-bar-dot.is-active {
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.35);
+}
+
+/* macOS traffic-light minimize / close states: the office body (and the
+   status strip) hide; a slim bar / closed screen takes their place. */
+.app-minimized .app-body,
+.app-closed .app-body,
+.app-minimized .status-strip,
+.app-closed .status-strip {
+  display: none;
+}
+.office-minimized-bar,
+.office-closed {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: #8a7a58;
+  font-size: 11px;
+  letter-spacing: 1px;
+  background: #0a0a0f;
+}
+.office-minimized-bar button,
+.office-closed button {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  color: #cfd0d1;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 11px;
+  padding: 6px 14px;
+}
+.office-minimized-bar button:hover,
+.office-closed button:hover {
+  background: rgba(255, 255, 255, 0.12);
 }
 
 .title-bar-text {

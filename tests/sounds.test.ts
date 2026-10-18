@@ -22,7 +22,7 @@ class FakeAudioContext {
   destination = {}
   constructor() { FakeAudioContext.instances.push(this) }
   createOscillator() { const o = makeOsc(); this.oscillators.push(o); return o }
-  createGain() { return { gain: { value: 0, exponentialRampToValueAtTime: vi.fn(), setTargetAtTime: vi.fn() }, connect: vi.fn() } }
+  createGain() { return { gain: { value: 0, exponentialRampToValueAtTime: vi.fn(), setTargetAtTime: vi.fn(), setValueAtTime: vi.fn(), linearRampToValueAtTime: vi.fn() }, connect: vi.fn() } }
 }
 
 describe('sounds.ts unlock (no-sound-at-all bug)', () => {
@@ -61,6 +61,29 @@ describe('sounds.ts unlock (no-sound-at-all bug)', () => {
     sfx.setVolume(0)
     expect(await sfx.resumeAudio()).toBe(false)
     expect(sfx.getAudioState()).toBe('muted')
+  })
+
+  it('playTestBell rings a clearly audible bell (peak >= 0.2) on a running context', async () => {
+    // Running-context fake: resume is a no-op, state already 'running'.
+    class FakeRunningContext extends FakeAudioContext {
+      state = 'running'
+      resume = vi.fn(async () => { /* already running */ })
+    }
+    ;(globalThis as any).AudioContext = FakeRunningContext
+    vi.resetModules()
+    const sfx = await import('../src/sounds')
+    await sfx.resumeAudio() // creates the FakeRunningContext instance
+    // Capture the gain nodes beep() creates: the fake hands out a fresh
+    // object per createGain, so intercept it on the single instance.
+    const ctx = FakeAudioContext.instances[0] as unknown as FakeRunningContext
+    const gains: any[] = []
+    const origCreateGain = (ctx as any).createGain.bind(ctx)
+    ;(ctx as any).createGain = () => { const g = origCreateGain(); gains.push(g); return g }
+    const ok = await sfx.playTestBell()
+    expect(ok).toBe(true)
+    expect(gains.length).toBeGreaterThanOrEqual(1)
+    const peak = gains[0].gain.linearRampToValueAtTime.mock.calls[0][0] as number
+    expect(peak).toBeGreaterThanOrEqual(0.2)
   })
 
   it('resumeAudio reports false when resume leaves the context suspended', async () => {
