@@ -3,6 +3,7 @@ import './styles/office.css'
 import './styles/rooms.css'
 import './styles/incident.css'
 import './styles/meters.css'
+import './styles/olympus.css'
 import SlackChat, { ChatMessage, getAvatarSrc } from './components/SlackChat'
 import Character from './components/Character'
 import FurnitureRenderer from './components/FurnitureRenderer'
@@ -40,6 +41,9 @@ import {
 import IncidentLayer from './components/IncidentLayer'
 import TaskBoard from './components/TaskBoard'
 import { dispatchTaskBoards } from './taskBoard'
+import GatesPanel, { initialGates } from './components/GatesPanel'
+import AgoraPanel, { AGORA_SEED } from './components/AgoraPanel'
+import type { AgoraMessage, GateInfo, OlympusStatus } from './types'
 
 // ---------------------------------------------------------------------------
 // Placement helper — loaded via ?helper query param
@@ -201,17 +205,17 @@ const SIM_CHATTER = [
   { sender: 'Reviewer', role: 'code-reviewer', msg: 'lgtm on the PR, just one nit on the error handling' },
   { sender: 'DBA', role: 'database-architect', msg: 'added an index on user_id, queries are 10x faster now' },
   { sender: 'DevOps', role: 'devops-engineer', msg: 'staging deploy is green, promoting to prod' },
-  { sender: 'Claude', role: 'assistant', msg: 'the printer jammed again. third time today.' },
+  { sender: 'Zeus', role: 'assistant', msg: 'the printer jammed again. third time today.' },
   { sender: 'Tester', role: 'test-engineer', msg: 'coverage is at 94%, just need the edge cases' },
   { sender: 'PerfEng', role: 'performance-engineer', msg: 'shaved 200ms off the initial load, LCP is under 2s' },
   { sender: 'Frontend', role: 'frontend-developer', msg: 'responsive layout done, looks great on mobile' },
-  { sender: 'Claude', role: 'assistant', msg: 'someone get the coffee machine, its making that sound again' },
+  { sender: 'Zeus', role: 'assistant', msg: 'someone get the coffee machine, its making that sound again' },
   { sender: 'Architect', role: 'architect-reviewer', msg: 'the new module boundary looks solid, good separation' },
   { sender: 'AI Eng', role: 'ai-engineer', msg: 'embeddings are indexed, RAG pipeline is live' },
   { sender: 'TS Pro', role: 'typescript-pro', msg: 'fixed the generic inference, no more any casts' },
-  { sender: 'Antony', role: 'boss', msg: 'anyone want a Red Bull?' },
-  { sender: 'Antony', role: 'boss', msg: 'ship it, we\'ll fix it in prod' },
-  { sender: 'Antony', role: 'boss', msg: 'how are we looking on the dashboard?' },
+  { sender: 'Zeus', role: 'boss', msg: 'anyone want a Red Bull?' },
+  { sender: 'Zeus', role: 'boss', msg: 'ship it, we\'ll fix it in prod' },
+  { sender: 'Zeus', role: 'boss', msg: 'how are we looking on the dashboard?' },
 ]
 
 // Dunder Mifflin themed chatter — used when /the-office is active
@@ -222,11 +226,11 @@ const OFFICE_SIM_CHATTER = [
   { sender: 'Reviewer', role: 'code-reviewer', msg: 'the ream count checks out. approved.' },
   { sender: 'DBA', role: 'database-architect', msg: 'indexed the client list alphabetically. like the old days.' },
   { sender: 'DevOps', role: 'devops-engineer', msg: 'loading the delivery truck — Schrute beet vans.' },
-  { sender: 'Claude', role: 'assistant', msg: 'Michael is in the conference room. again. please help.' },
+  { sender: 'Zeus', role: 'assistant', msg: 'Michael is in the conference room. again. please help.' },
   { sender: 'Tester', role: 'test-engineer', msg: 'tested the paper quality. still paper. 94% paper.' },
   { sender: 'PerfEng', role: 'performance-engineer', msg: 'the printer warms up 200ms faster. small wins.' },
   { sender: 'Frontend', role: 'frontend-developer', msg: 'mobile layout works — even Creed noticed' },
-  { sender: 'Claude', role: 'assistant', msg: 'someone get the printer, it\'s on fire. literal fire.' },
+  { sender: 'Zeus', role: 'assistant', msg: 'someone get the printer, it\'s on fire. literal fire.' },
   { sender: 'Architect', role: 'architect-reviewer', msg: 'the Finer Things Club charter is immaculate' },
   { sender: 'AI Eng', role: 'ai-engineer', msg: 'teaching the copier to recognize Stanley\'s handwriting' },
   { sender: 'TS Pro', role: 'typescript-pro', msg: 'false. that is not a staple. it is a Dwight.' },
@@ -468,6 +472,93 @@ const App: React.FC = () => {
   }, [])
 
   // ---------------------------------------------------------------------------
+  // Olympus: Gates + Agora + run status (local-dev-team)
+  // ---------------------------------------------------------------------------
+
+  // Zeus's run status, from POST /olympus/status or status.json polling
+  const [olympusStatus, setOlympusStatus] = useState<OlympusStatus | null>(null)
+  const [gates, setGates] = useState<GateInfo[]>(() => initialGates())
+  const [gateWaiting, setGateWaiting] = useState<{ gate: string; docVersion?: string } | null>(null)
+  // A gate waiting = HARD stop: the office is paused until the owner decides
+  const [gatePaused, setGatePaused] = useState(false)
+  const [agora, setAgora] = useState<AgoraMessage[]>(() => [...AGORA_SEED])
+  const [selectedAgoraIdx, setSelectedAgoraIdx] = useState<number | null>(null)
+  const [agoraBubble, setAgoraBubble] = useState<{ agentId: string; text: string; key: number } | null>(null)
+  // AudioContext starts suspended until a user gesture (browser autoplay
+  // policy): the sound-unlock banner shows until the first interaction
+  const [audioUnlocked, setAudioUnlocked] = useState(() => sfx.isAudioUnlocked())
+
+  const unlockAudio = useCallback(() => {
+    sfx.resumeAudio()
+    if (!sfx.isMuted()) sfx.playAmbientHum()
+    setAudioUnlocked(true)
+  }, [])
+
+  useEffect(() => {
+    const onFirstGesture = () => unlockAudio()
+    window.addEventListener('pointerdown', onFirstGesture, { once: true })
+    return () => window.removeEventListener('pointerdown', onFirstGesture)
+  }, [unlockAudio])
+
+  // ?sim demo: Gate 0.5 waits for approval 10 s after load, so the
+  // banner + panel are visible without a live server
+  const simGateSeededRef = useRef(false)
+  useEffect(() => {
+    if (!isSimMode || simGateSeededRef.current) return
+    simGateSeededRef.current = true
+    const t = setTimeout(() => {
+      setGates(prev => prev.map(g => (g.id === '0.5' ? { ...g, status: 'waiting' } : g)))
+      setGateWaiting({ gate: '0.5', docVersion: 'brief v1' })
+      setGatePaused(true)
+    }, 10000)
+    return () => clearTimeout(t)
+  }, [])
+
+  /** God display name → office role, for Agora click-to-highlight */
+  const GOD_ROLE: Record<string, string> = {
+    Zeus: 'boss', Athena: 'spec', Apollo: 'design', Hephaestus: 'frontend',
+    Hades: 'backend', Argus: 'qc', Ares: 'security', Hermes: 'release',
+  }
+
+  const handleGateDecision = useCallback((gateId: string, choice: 'Gas' | 'Revisi' | 'Stop') => {
+    const at = new Date().toTimeString().slice(0, 5)
+    setGates(prev => {
+      const idx = prev.findIndex(g => g.id === gateId)
+      if (idx === -1) return prev
+      return prev.map((g, i) => {
+        if (g.id === gateId) {
+          return {
+            ...g,
+            status: choice === 'Gas' ? 'passed' : choice === 'Revisi' ? 'revisi' : 'stopped',
+            decision: { choice, at, docVersion: gateWaiting?.docVersion },
+          }
+        }
+        // Gas unlocks the next gate; Stop locks everything that is not decided
+        if (choice === 'Gas' && i === idx + 1 && g.status === 'locked') return { ...g, status: 'active' }
+        if (choice === 'Stop' && (g.status === 'active' || g.status === 'waiting')) return { ...g, status: 'locked' }
+        return g
+      })
+    })
+    if (choice === 'Revisi') {
+      // Back to Spec/Design: the brief gate becomes active again
+      setGates(prev => prev.map(g => (g.id === '0.5' && g.status !== 'passed' ? { ...g, status: 'active' } : g)))
+    }
+    setGateWaiting(null)
+    setGatePaused(false)
+    addMsg('system', 'default', '#8b8d91', `Approval tercatat — ${choice} Gate ${gateId} — eksekusi via chat`, true)
+  }, [addMsg, gateWaiting?.docVersion])
+
+  const handleAgoraSelect = useCallback((idx: number, msg: AgoraMessage) => {
+    setSelectedAgoraIdx(idx)
+    const role = GOD_ROLE[msg.from] ?? msg.from.toLowerCase()
+    const agent = agentsRef.current.find(a => a.role === role)
+    if (!agent) return
+    setInspectedId(agent.id)
+    setAgoraBubble({ agentId: agent.id, text: msg.body, key: Date.now() })
+    schedule(() => setAgoraBubble(prev => (prev && Date.now() - prev.key > 3500 ? null : prev)), 4000)
+  }, [schedule])
+
+  // ---------------------------------------------------------------------------
   // Flush the reducer's side-effects — once per event, never inside an updater
   // ---------------------------------------------------------------------------
 
@@ -687,6 +778,24 @@ const App: React.FC = () => {
     // The sessions' task lists (server/tasks.js): the kanban board's own store (src/taskBoard.ts)
     if (action.type === 'task_board') {
       dispatchTaskBoards(action)
+      return
+    }
+    // Olympus (server/olympus.js): Zeus's run status, gate waits, Agora.
+    // These are UI state, not reducer actions — never reach reduceOffice.
+    if (action.type === 'status_update') {
+      if (action.olympus) setOlympusStatus(action.olympus)
+      return
+    }
+    if (action.type === 'gate_waiting') {
+      if (action.gateWaiting) {
+        setGateWaiting(action.gateWaiting)
+        setGatePaused(true)
+        setGates(prev => prev.map(g => (g.id === action.gateWaiting!.gate ? { ...g, status: 'waiting' } : g)))
+      }
+      return
+    }
+    if (action.type === 'agora_message') {
+      if (action.agoraMessage) setAgora(prev => [...prev.slice(-99), action.agoraMessage!])
       return
     }
 
@@ -1432,7 +1541,7 @@ const App: React.FC = () => {
         <div className="title-bar-dot" style={{ background: '#ff5f57' }} />
         <div className="title-bar-dot" style={{ background: '#febc2e' }} />
         <div className="title-bar-dot" style={{ background: '#28c840' }} />
-        <span className="title-bar-text">{titlePrefix}{variant === 'incident' ? '🔥 PROD IS DOWN — AGENT OFFICE' : 'CLAUDE CODE — AGENT OFFICE'}</span>
+        <span className="title-bar-text">{titlePrefix}{variant === 'incident' ? '🔥 PROD IS DOWN — OLYMPUS' : 'OLYMPUS — DEV TEAM DASHBOARD'}</span>
         <SessionStrip sessions={sessions} agents={agents} />
         <button
           className="title-bar-daynight"
@@ -1448,6 +1557,15 @@ const App: React.FC = () => {
 
       <div className="app-body">
       <div className="office-view">
+        {gatePaused && gateWaiting && (
+          <div className="olympus-gate-banner">
+            <strong>⏸️ NUNGGU APPROVAL LO — Gate {gateWaiting.gate}</strong>
+            {gateWaiting.docVersion && <span>{gateWaiting.docVersion}</span>}
+            <button type="button" className="gate-btn gate-gas" onClick={() => handleGateDecision(gateWaiting.gate, 'Gas')}>Gas</button>
+            <button type="button" className="gate-btn gate-revisi" onClick={() => handleGateDecision(gateWaiting.gate, 'Revisi')}>Revisi</button>
+            <button type="button" className="gate-btn gate-stop" onClick={() => handleGateDecision(gateWaiting.gate, 'Stop')}>Stop</button>
+          </div>
+        )}
         <div
           className={`room-container${flickering ? ' flickering' : ''}${variant === 'incident' ? ' incident' : ''}`}
           style={{
@@ -1559,6 +1677,23 @@ const App: React.FC = () => {
             )
           })()}
 
+          {/* Agora bubble: the sender's bubble shows the clicked message verbatim */}
+          {agoraBubble && (() => {
+            const speaker = agents.find(a => a.id === agoraBubble.agentId)
+            if (!speaker) return null
+            return (
+              <div
+                className="agora-bubble"
+                style={{
+                  left: `${speaker.position.x}%`,
+                  top: `${speaker.position.y - 6}%`,
+                }}
+              >
+                {agoraBubble.text}
+              </div>
+            )
+          })()}
+
           {/* Incident mode: days-since sign (every mode), tint / beacon / status TV (incident only) */}
           <IncidentLayer />
 
@@ -1569,6 +1704,11 @@ const App: React.FC = () => {
 
       <AgentCard agentId={inspectedId} agent={agents.find(a => a.id === inspectedId)} sessions={sessions} onClose={() => setInspectedId(null)} />
       <div className="chat-column">
+      {!audioUnlocked && (
+        <button type="button" className="sound-unlock" onClick={unlockAudio}>
+          🔊 Klik untuk aktifin suara — bunyi kantor mulai setelah klik pertama
+        </button>
+      )}
       {!isSimMode && <PermissionCards cards={permissionCards} dispatch={dispatchPermissions} readOnly={readOnly} />}
       <Meters onNotice={text => addMsg('system', 'default', '#8b8d91', text, true)} />
       <SlackChat
@@ -1585,6 +1725,21 @@ const App: React.FC = () => {
         onReaction={handleReaction}
         readOnly={readOnly}
       />
+      <GatesPanel gates={gates} onDecision={handleGateDecision} />
+      <AgoraPanel messages={agora} selectedIdx={selectedAgoraIdx} onSelect={handleAgoraSelect} />
+      {olympusStatus && (
+        <div className="olympus-panel olympus-status">
+          <div className="olympus-panel-head">
+            <span>⚡ Run {olympusStatus.runId ?? '—'}</span>
+            <span className="olympus-panel-hint">{olympusStatus.stage ? `Stage ${olympusStatus.stage}` : 'live'}</span>
+          </div>
+          <div className="agora-body" style={{ padding: '0 10px 8px' }}>
+            {olympusStatus.agent ? `${olympusStatus.agent}` : ''}
+            {olympusStatus.agent && olympusStatus.task ? ' — ' : ''}
+            {olympusStatus.task ?? ''}
+          </div>
+        </div>
+      )}
       </div>
       </div>
       <StatusStrip office={officeRef} sessions={sessions} readOnly={readOnly} />
