@@ -44,6 +44,14 @@ import { dispatchTaskBoards } from './taskBoard'
 import GatesPanel, { initialGates } from './components/GatesPanel'
 import AgoraPanel, { AGORA_SEED } from './components/AgoraPanel'
 import { parseSlashCommand, slashReply, type SlashSnapshot } from './slashCommands'
+import {
+  fetchOlympusStatus,
+  liveModeUrl,
+  OLYMPUS_POLL_MS,
+  olympusSnapshotSignature,
+  simModeUrl,
+  type OlympusFetchError,
+} from './olympusLive'
 import type { AgoraMessage, GateInfo, OlympusStatus } from './types'
 
 // ---------------------------------------------------------------------------
@@ -485,6 +493,73 @@ const App: React.FC = () => {
   const [agora, setAgora] = useState<AgoraMessage[]>(() => [...AGORA_SEED])
   const [selectedAgoraIdx, setSelectedAgoraIdx] = useState<number | null>(null)
   const [agoraBubble, setAgoraBubble] = useState<{ agentId: string; text: string; key: number } | null>(null)
+
+  // --- Vercel LIVE mode (no WS server): poll status.json ----------------
+  // ?sim = demo seed, never polls. Any other URL = LIVE: poll the run's
+  // status.json from the public repo every 5 s (src/olympusLive.ts) and
+  // apply it through the SAME state the WS handlers use — Live and
+  // WS-local render identically. A poll only applies when the file
+  // actually changed (signature), so a local gate click is not reverted
+  // by the next poll while the file is unchanged.
+  // liveConnected = at least one good poll ever landed (panels show real
+  // data). Before that, the empty banner shows — never the ?sim seed.
+  const [liveConnected, setLiveConnected] = useState(false)
+  const [livePollError, setLivePollError] = useState<OlympusFetchError | null>(null)
+  const [liveRunActive, setLiveRunActive] = useState<boolean | null>(null)
+  const [liveUpdatedAt, setLiveUpdatedAt] = useState<string | null>(null)
+  const liveSigRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (isSimMode) return
+    let cancelled = false
+    const applyOnce = async () => {
+      try {
+        const { rawText, snapshot } = await fetchOlympusStatus()
+        if (cancelled) return
+        setLivePollError(null)
+        const sig = olympusSnapshotSignature(rawText)
+        if (sig === liveSigRef.current) {
+          // Unchanged file: still mark connected, but do not re-apply —
+          // a local Gate decision stays until Zeus writes a new file.
+          setLiveConnected(true)
+          return
+        }
+        const isFirst = liveSigRef.current === null
+        liveSigRef.current = sig
+        setOlympusStatus(snapshot.olympus)
+        // First live snapshot replaces the demo seed wholesale: a file
+        // without an agora array means "no Agora yet", not "keep demo".
+        if (snapshot.agora !== undefined) setAgora(snapshot.agora)
+        else if (isFirst) setAgora([])
+        if (snapshot.gates !== undefined) setGates(snapshot.gates)
+        if (snapshot.hasGateKey) {
+          if (snapshot.gateWaiting) {
+            setGateWaiting(snapshot.gateWaiting)
+            setGatePaused(true)
+            setGates(prev => prev.map(g => (g.id === snapshot.gateWaiting!.gate ? { ...g, status: 'waiting' } : g)))
+          } else {
+            setGateWaiting(null)
+            setGatePaused(false)
+          }
+        }
+        setLiveRunActive(snapshot.runActive)
+        setLiveUpdatedAt(snapshot.updatedAt ?? null)
+        setLiveConnected(true)
+      } catch (err) {
+        if (cancelled) return
+        setLivePollError(err as OlympusFetchError)
+        // A failed poll never wipes panels: with no data yet the empty
+        // banner shows; with data, the last snapshot stays + badge warns.
+      }
+    }
+    void applyOnce()
+    const t = setInterval(() => { void applyOnce() }, OLYMPUS_POLL_MS)
+    return () => { cancelled = true; clearInterval(t) }
+  }, [])
+
+  // LIVE ↔ SIM toggle: same page, ?sim toggled, full reload (a soft flip
+  // would leave a half-sim / half-live office — see olympusLive.ts).
+  const switchToLive = useCallback(() => { window.location.href = liveModeUrl() }, [])
+  const switchToSim = useCallback(() => { window.location.href = simModeUrl() }, [])
   // AudioContext starts suspended until a user gesture (browser autoplay
   // policy): the sound-unlock banner shows until the first interaction
   const [audioUnlocked, setAudioUnlocked] = useState(() => sfx.isAudioUnlocked())
@@ -1661,6 +1736,27 @@ const App: React.FC = () => {
         <button type="button" className="title-bar-dot" style={{ background: '#febc2e' }} onClick={() => setOfficeMinimized(true)} title="Minimize office" aria-label="Minimize office"><span className="title-bar-dot-symbol">−</span></button>
         <button type="button" className={`title-bar-dot${isFullscreen ? ' is-active' : ''}`} style={{ background: '#28c840' }} onClick={toggleFullscreen} title={isFullscreen ? 'Keluar fullscreen (Esc)' : 'Fullscreen'} aria-label={isFullscreen ? 'Keluar fullscreen' : 'Fullscreen'}><span className="title-bar-dot-symbol">+</span></button>
         <span className="title-bar-text">{titlePrefix}{variant === 'incident' ? '🔥 PROD IS DOWN — OLYMPUS' : 'OLYMPUS — DEV TEAM DASHBOARD'}</span>
+        <div className="title-bar-live-toggle" role="group" aria-label="Mode data">
+          <button
+            type="button"
+            className={`title-bar-live-btn${!isSimMode ? ' is-active' : ''}`}
+            onClick={switchToLive}
+            disabled={!isSimMode}
+            title={isSimMode ? 'Pindah ke LIVE (data run beneran dari status.json)' : 'LIVE — data run beneran dari status.json'}
+          >
+            <span className={`live-dot${!isSimMode && liveConnected ? ' live-on' : ''}`} />
+            LIVE{!isSimMode && liveRunActive === false ? ' · Run terakhir' : ''}
+          </button>
+          <button
+            type="button"
+            className={`title-bar-live-btn${isSimMode ? ' is-active' : ''}`}
+            onClick={switchToSim}
+            disabled={isSimMode}
+            title={isSimMode ? 'SIM — demo seed' : 'Pindah ke SIM (demo seed)'}
+          >
+            SIM
+          </button>
+        </div>
         <SessionStrip sessions={sessions} agents={agents} />
         <button
           className="title-bar-daynight"
@@ -1871,6 +1967,22 @@ const App: React.FC = () => {
 
       <AgentCard agentId={inspectedId} agent={agents.find(a => a.id === inspectedId)} sessions={sessions} onClose={() => setInspectedId(null)} />
       <div className="chat-column">
+      {!isSimMode && !liveConnected && (
+        <div className="olympus-panel olympus-live-empty" role="status">
+          <div className="olympus-panel-head"><span>🏛️ Olympus sepi</span></div>
+          <div className="agora-body" style={{ padding: '8px 10px' }}>
+            <strong>Belum ada run aktif.</strong>{' '}
+            {livePollError?.kind === 'network' || livePollError?.kind === 'invalid'
+              ? 'Gagal mengambil status.json — cek koneksi, mencoba lagi tiap 5 detik.'
+              : 'Jalankan run via Muse agar status muncul di sini. Zeus menulis status.json tiap ada perubahan.'}
+          </div>
+        </div>
+      )}
+      {!isSimMode && liveConnected && livePollError && (
+        <div className="olympus-panel olympus-live-stale" role="status">
+          Polling status.json gagal — menampilkan data terakhir, mencoba lagi tiap 5 detik.
+        </div>
+      )}
       {!audioUnlocked && (
         <button type="button" className="sound-unlock" onClick={() => { void unlockAudio() }}>
           🔊 Klik untuk aktifin suara — bunyi kantor mulai setelah klik pertama
@@ -1898,12 +2010,19 @@ const App: React.FC = () => {
         <div className="olympus-panel olympus-status">
           <div className="olympus-panel-head">
             <span>⚡ Run {olympusStatus.runId ?? '—'}</span>
-            <span className="olympus-panel-hint">{olympusStatus.stage ? `Stage ${olympusStatus.stage}` : 'live'}</span>
+            <span className="olympus-panel-hint">
+              {!isSimMode && liveRunActive === false
+                ? 'Run terakhir'
+                : olympusStatus.stage ? `Stage ${olympusStatus.stage}` : 'live'}
+            </span>
           </div>
           <div className="agora-body" style={{ padding: '0 10px 8px' }}>
             {olympusStatus.agent ? `${olympusStatus.agent}` : ''}
             {olympusStatus.agent && olympusStatus.task ? ' — ' : ''}
             {olympusStatus.task ?? ''}
+            {!isSimMode && liveUpdatedAt && (
+              <div className="olympus-panel-hint">Update terakhir: {liveUpdatedAt}</div>
+            )}
           </div>
         </div>
       )}

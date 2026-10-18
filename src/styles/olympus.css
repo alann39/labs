@@ -395,3 +395,72 @@
     max-width: calc(100vw - 24px);
   }
 }
+
+/* --- Vercel LIVE mode: LIVE/SIM toggle + empty/stale banners ---
+   Toggle reuses the title-bar token (office.css .title-bar-daynight):
+   same tiny mono pill, same hover. LIVE dot: green when a live poll
+   has landed, dim while waiting / in SIM. */
+.title-bar-live-toggle {
+  display: inline-flex;
+  gap: 2px;
+  align-items: center;
+  -webkit-app-region: no-drag;
+}
+
+.title-bar-live-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 7px;
+  font-family: 'JetBrains Mono', monospace;
+  color: #5a4a38;
+  letter-spacing: 1px;
+  padding: 2px 6px;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.title-bar-live-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  color: #8a7a58;
+}
+
+.title-bar-live-btn.is-active {
+  background: rgba(255, 255, 255, 0.12);
+  color: #cfd0d1;
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.title-bar-live-btn:disabled {
+  cursor: default;
+}
+
+.title-bar-live-btn .live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #5a4a38;
+  flex-shrink: 0;
+}
+
+.title-bar-live-btn .live-dot.live-on {
+  background: #2ecc71;
+  box-shadow: 0 0 4px #2ecc71;
+}
+
+/* Empty state (LIVE, no status.json yet): same panel shell as Gates/Agora,
+   never the ?sim seed — live must not show demo data as real. */
+.olympus-live-empty {
+  max-height: none;
+  border-bottom: 1px solid #35363a;
+}
+
+.olympus-live-stale {
+  max-height: none;
+  padding: 6px 10px;
+  color: #c9a227;
+  border-bottom: 1px solid #35363a;
+}
