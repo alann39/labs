@@ -487,18 +487,83 @@ const App: React.FC = () => {
   // AudioContext starts suspended until a user gesture (browser autoplay
   // policy): the sound-unlock banner shows until the first interaction
   const [audioUnlocked, setAudioUnlocked] = useState(() => sfx.isAudioUnlocked())
+  const [audioState, setAudioState] = useState<sfx.AudioState>(() => sfx.getAudioState())
 
-  const unlockAudio = useCallback(() => {
-    sfx.resumeAudio()
-    if (!sfx.isMuted()) sfx.playAmbientHum()
-    setAudioUnlocked(true)
+  // Verify the resume really landed: the old code hid the banner
+  // unconditionally, so the UI claimed audio was on while the context
+  // was still suspended. Now the banner only hides on state 'running'.
+  const unlockAudio = useCallback(async () => {
+    const ok = await sfx.resumeAudio()
+    if (ok && !sfx.isMuted()) sfx.playAmbientHum()
+    setAudioUnlocked(sfx.isAudioUnlocked())
+    setAudioState(sfx.getAudioState())
+    return ok
   }, [])
 
+  // "Test Suara": resume + one audible bell, so the user can verify
+  // sound without waiting for an office event.
+  const testSound = useCallback(async () => {
+    const ok = await unlockAudio()
+    if (ok) sfx.playBell()
+    setAudioState(sfx.getAudioState())
+  }, [unlockAudio])
+
   useEffect(() => {
-    const onFirstGesture = () => unlockAudio()
+    const onFirstGesture = () => { void unlockAudio() }
     window.addEventListener('pointerdown', onFirstGesture, { once: true })
     return () => window.removeEventListener('pointerdown', onFirstGesture)
   }, [unlockAudio])
+
+  // --- Fullscreen (whole page: office + panels) -----------------------
+  // Native requestFullscreen can be rejected in an iframe / Vercel
+  // preview (Promise rejection, not a sync throw) — on rejection fall
+  // back to a CSS fullscreen class so the button always works.
+  const [fsFallback, setFsFallback] = useState(false)
+  const [isNativeFs, setIsNativeFs] = useState(false)
+  const isFullscreen = isNativeFs || fsFallback
+
+  const toggleFullscreen = useCallback(() => {
+    if (document.fullscreenElement) {
+      void document.exitFullscreen().catch(() => {})
+      return
+    }
+    if (fsFallback) {
+      setFsFallback(false)
+      return
+    }
+    const el = document.documentElement
+    if (typeof el.requestFullscreen === 'function') {
+      const p = el.requestFullscreen() as unknown as Promise<void> | undefined
+      if (p && typeof p.catch === 'function') {
+        p.catch(() => setFsFallback(true))
+      }
+    } else {
+      setFsFallback(true)
+    }
+  }, [fsFallback])
+
+  useEffect(() => {
+    const onChange = () => {
+      setIsNativeFs(!!document.fullscreenElement)
+      if (!document.fullscreenElement) setFsFallback(false)
+    }
+    document.addEventListener('fullscreenchange', onChange)
+    return () => document.removeEventListener('fullscreenchange', onChange)
+  }, [])
+
+  // CSS-fallback fullscreen: Esc exits (native Esc is handled by the browser).
+  useEffect(() => {
+    if (!fsFallback) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setFsFallback(false) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [fsFallback])
+
+  // --- Gate approval modal (centered, scrollable) ----------------------
+  const [showGateModal, setShowGateModal] = useState(false)
+  useEffect(() => {
+    if (gateWaiting) setShowGateModal(true)
+  }, [gateWaiting])
 
   // ?sim demo: Gate 0.5 waits for approval 10 s after load, so the
   // banner + panel are visible without a live server
@@ -545,6 +610,7 @@ const App: React.FC = () => {
     }
     setGateWaiting(null)
     setGatePaused(false)
+    setShowGateModal(false)
     addMsg('system', 'default', '#8b8d91', `Approval tercatat — ${choice} Gate ${gateId} — eksekusi via chat`, true)
   }, [addMsg, gateWaiting?.docVersion])
 
@@ -1474,15 +1540,27 @@ const App: React.FC = () => {
   const [volume, setVolume] = useState(sfx.getVolume())
 
   const handleToggleMute = useCallback(() => {
-    const nowMuted = sfx.toggleMute()
-    setMuted(nowMuted)
-    setVolume(sfx.getVolume())
+    // A click on the mute button is a user gesture: resume first, so
+    // unmuting actually produces sound instead of staying suspended.
+    void sfx.resumeAudio().then(() => {
+      const nowMuted = sfx.toggleMute()
+      setMuted(nowMuted)
+      setVolume(sfx.getVolume())
+      if (!nowMuted) sfx.playAmbientHum()
+      setAudioUnlocked(sfx.isAudioUnlocked())
+      setAudioState(sfx.getAudioState())
+    })
   }, [])
 
   const handleVolumeChange = useCallback((v: number) => {
-    sfx.setVolume(v)
-    setVolume(v)
-    setMuted(v === 0)
+    void sfx.resumeAudio().then(() => {
+      sfx.setVolume(v)
+      setVolume(v)
+      setMuted(v === 0)
+      if (v > 0) sfx.playAmbientHum()
+      setAudioUnlocked(sfx.isAudioUnlocked())
+      setAudioState(sfx.getAudioState())
+    })
   }, [])
 
   const handleSendMessage = useCallback((text: string) => {
@@ -1536,7 +1614,7 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="app-wrapper">
+    <div className={`app-wrapper${isFullscreen ? ' app-fullscreen' : ''}`}>
       <div className="title-bar">
         <div className="title-bar-dot" style={{ background: '#ff5f57' }} />
         <div className="title-bar-dot" style={{ background: '#febc2e' }} />
@@ -1552,6 +1630,13 @@ const App: React.FC = () => {
         >
           {dayNightMode === 'auto' ? 'AUTO' : dayNightMode === 'day' ? 'DAY' : 'NIGHT'}
         </button>
+        <button
+          className="title-bar-daynight"
+          onClick={toggleFullscreen}
+          title={isFullscreen ? 'Keluar fullscreen (Esc)' : 'Fullscreen seluruh halaman'}
+        >
+          {isFullscreen ? '⛶ KELUAR' : '⛶ FULLSCREEN'}
+        </button>
         <span className="title-bar-phase">{getPhaseLabel(effectivePhase)}</span>
       </div>
 
@@ -1561,9 +1646,45 @@ const App: React.FC = () => {
           <div className="olympus-gate-banner">
             <strong>⏸️ NUNGGU APPROVAL LO — Gate {gateWaiting.gate}</strong>
             {gateWaiting.docVersion && <span>{gateWaiting.docVersion}</span>}
-            <button type="button" className="gate-btn gate-gas" onClick={() => handleGateDecision(gateWaiting.gate, 'Gas')}>Gas</button>
-            <button type="button" className="gate-btn gate-revisi" onClick={() => handleGateDecision(gateWaiting.gate, 'Revisi')}>Revisi</button>
-            <button type="button" className="gate-btn gate-stop" onClick={() => handleGateDecision(gateWaiting.gate, 'Stop')}>Stop</button>
+            <button type="button" className="gate-btn" onClick={() => setShowGateModal(true)}>Buka persetujuan</button>
+          </div>
+        )}
+        {gatePaused && gateWaiting && showGateModal && (
+          <div
+            className="gate-modal-overlay"
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Persetujuan Gate ${gateWaiting.gate}`}
+            onClick={() => setShowGateModal(false)}
+          >
+            <div className="gate-modal" onClick={e => e.stopPropagation()}>
+              <div className="gate-modal-head">
+                <strong>⏸️ NUNGGU APPROVAL LO — Gate {gateWaiting.gate}</strong>
+                <button type="button" className="gate-modal-close" onClick={() => setShowGateModal(false)} aria-label="Tutup">✕</button>
+              </div>
+              <div className="gate-modal-body">
+                <p className="gate-modal-doc">
+                  {gateWaiting.docVersion ? `Dokumen: ${gateWaiting.docVersion}` : 'Dokumen: —'}
+                </p>
+                <p>
+                  Gate ini adalah HARD stop: tidak ada kode yang jalan sebelum lo memutuskan.
+                  Baca dokumen di atas (di panel Gates / chat), lalu pilih salah satu:
+                </p>
+                <ul className="gate-modal-choices">
+                  <li><strong>Gas</strong> — setuju, lanjut ke tahap berikutnya.</li>
+                  <li><strong>Revisi</strong> — balik ke Spec/Design dengan catatan, tidak lanjut.</li>
+                  <li><strong>Stop</strong> — hentikan arah ini / replan.</li>
+                </ul>
+                <p className="gate-modal-note">
+                  Keputusan dicatat sebagai approval record. Eksekusi dilakukan Manager di chat.
+                </p>
+              </div>
+              <div className="gate-modal-footer">
+                <button type="button" className="gate-btn gate-gas" onClick={() => handleGateDecision(gateWaiting.gate, 'Gas')}>Gas</button>
+                <button type="button" className="gate-btn gate-revisi" onClick={() => handleGateDecision(gateWaiting.gate, 'Revisi')}>Revisi</button>
+                <button type="button" className="gate-btn gate-stop" onClick={() => handleGateDecision(gateWaiting.gate, 'Stop')}>Stop</button>
+              </div>
+            </div>
           </div>
         )}
         <div
@@ -1704,8 +1825,16 @@ const App: React.FC = () => {
 
       <AgentCard agentId={inspectedId} agent={agents.find(a => a.id === inspectedId)} sessions={sessions} onClose={() => setInspectedId(null)} />
       <div className="chat-column">
+      <div className="sound-row">
+        <span className="sound-status" data-testid="audio-state">
+          Audio: {muted ? 'muted' : audioState === 'running' ? 'on 🔊' : audioState === 'suspended' ? 'off — klik Test Suara' : audioState}
+        </span>
+        <button type="button" className="sound-test-btn" onClick={() => { void testSound() }} title="Resume audio + bunyikan bell sekali untuk verifikasi">
+          🔔 Test Suara
+        </button>
+      </div>
       {!audioUnlocked && (
-        <button type="button" className="sound-unlock" onClick={unlockAudio}>
+        <button type="button" className="sound-unlock" onClick={() => { void unlockAudio() }}>
           🔊 Klik untuk aktifin suara — bunyi kantor mulai setelah klik pertama
         </button>
       )}
