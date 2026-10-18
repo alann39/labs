@@ -71,14 +71,25 @@ function beep(freq: number, duration: number, type: OscillatorType = 'square', v
   }
   const osc = c.createOscillator()
   const gain = c.createGain()
+  const t = c.currentTime
+  const peak = vol * masterVolume
   osc.type = type
   osc.frequency.value = freq
-  gain.gain.value = vol * masterVolume
-  gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + duration)
+  // Envelope: short attack (no click), then a decaying ring.
+  //
+  // ROOT-CAUSE FIX (Test Suara silent while status showed "on"): the old
+  // code set the peak then exponentialRampToValueAtTime(0.001) over the
+  // whole duration — a 0.04-peak note fell below audibility within ~50 ms,
+  // so the bell read as silence on laptop speakers. setTargetAtTime with
+  // a time constant of duration/3 keeps the note ringing for its full
+  // length, and the bell below now uses a much louder peak.
+  gain.gain.setValueAtTime(0.0001, t)
+  gain.gain.linearRampToValueAtTime(Math.max(peak, 0.0002), t + 0.005)
+  gain.gain.setTargetAtTime(0.0001, t + 0.005, Math.max(duration / 3, 0.08))
   osc.connect(gain)
   gain.connect(c.destination)
-  osc.start()
-  osc.stop(c.currentTime + duration)
+  osc.start(t)
+  osc.stop(t + duration + 0.25)
 }
 
 export function playTyping() {
@@ -119,10 +130,24 @@ export function playCelebration() {
 
 export function playBell() {
   if (masterVolume === 0) return
-  // Bright metallic ding-ding
-  beep(1400, 0.2, 'sine', 0.08)
-  setTimeout(() => beep(1800, 0.15, 'sine', 0.06), 150)
-  setTimeout(() => beep(1400, 0.1, 'sine', 0.04), 350)
+  // Loud, clearly audible ding-ding: 880 Hz fundamental (small laptop
+  // speakers reproduce it far better than 1400/1800 Hz), peaks
+  // 0.25/0.20/0.15 at default volume instead of the old 0.04/0.03/0.02.
+  beep(880, 0.35, 'sine', 0.5)
+  setTimeout(() => beep(1320, 0.3, 'sine', 0.4), 150)
+  setTimeout(() => beep(880, 0.25, 'sine', 0.3), 350)
+}
+
+/**
+ * Test-bell for the "Test Suara" button: await the resume first, then
+ * ring the loud bell. Returns whether audio is really running, so the
+ * UI never claims "on" while the context is still suspended.
+ */
+export async function playTestBell(): Promise<boolean> {
+  const ok = await resumeAudio()
+  if (!ok) return false
+  playBell()
+  return true
 }
 
 /** Needs-you chime: three soft rising notes — Claude is waiting on you */
