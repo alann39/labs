@@ -231,7 +231,7 @@ describe('chat-ai-watcher.sh', () => {
     const withToken = await request(w.office.server.app).get('/chat').set('Authorization', `Bearer ${w.office.server.AUTH_TOKEN}`)
     expect(withToken.body.messages).toEqual(expect.arrayContaining([
       expect.objectContaining({ sender: 'Boss', role: 'boss', msg_type: 'prompt', text: 'there is a bug in login, fix it' }),
-      expect.objectContaining({ sender: 'Claude', role: 'assistant', msg_type: 'reply', text: 'Fixed the bug in login.' }),
+      expect.objectContaining({ sender: 'Zeus · Manager', role: 'assistant', msg_type: 'reply', text: 'Fixed the bug in login.' }),
     ]))
     // ...and absent from what the watcher polls
     const msgs = await chat(w)
