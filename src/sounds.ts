@@ -7,25 +7,55 @@ function getCtx(): AudioContext {
   return ctx
 }
 
+export type AudioState = 'running' | 'suspended' | 'muted' | 'unavailable'
+
 /**
- * Unlock audio after the first user interaction. Browsers start an
- * AudioContext suspended until a gesture (autoplay policy), so every
- * sound is silent until this runs. Safe to call repeatedly; a no-op
- * when there is no context yet or it is already running.
+ * Current audio state for the UI status line. A context whose `state`
+ * is missing (older browsers / test fakes) is treated as running —
+ * only an explicit 'suspended' counts as suspended.
  */
-export function resumeAudio(): void {
+export function getAudioState(): AudioState {
+  if (masterVolume === 0) return 'muted'
+  try {
+    if (!ctx) return 'suspended'
+    if ((ctx as AudioContext).state === 'suspended') return 'suspended'
+    return 'running'
+  } catch (_) {
+    return 'unavailable'
+  }
+}
+
+/**
+ * Unlock audio after a user gesture. Browsers start an AudioContext
+ * suspended until a gesture (autoplay policy), so every sound is silent
+ * until this runs.
+ *
+ * ROOT-CAUSE FIX (no-sound-at-all bug): the old version was fire-and-
+ * forget (`void c.resume()`) and callers hid the unlock banner without
+ * ever checking whether the context actually reached 'running'. Worse,
+ * playAmbientHum() set `ambientRunning = true` even on a suspended
+ * context, so the mount effect's single 2 s call "used up" the hum and
+ * later unlock calls early-returned on the stuck flag. This version
+ * awaits the resume, reports whether it really unlocked, and never
+ * claims success on a still-suspended context.
+ */
+export async function resumeAudio(): Promise<boolean> {
+  if (masterVolume === 0) return false
   try {
     const c = getCtx()
-    if (c.state === 'suspended') void c.resume()
+    if (typeof (c as AudioContext).resume === 'function' && (c as AudioContext).state === 'suspended') {
+      await (c as AudioContext).resume()
+    }
+    return getAudioState() === 'running'
   } catch (_) {
-    // AudioContext may not be available in some environments
+    return false
   }
 }
 
 /** True once the AudioContext is running (a user gesture has unlocked it). */
 export function isAudioUnlocked(): boolean {
   try {
-    return !!ctx && ctx.state === 'running'
+    return !!ctx && (ctx as AudioContext).state === 'running'
   } catch (_) {
     return false
   }
@@ -34,6 +64,11 @@ export function isAudioUnlocked(): boolean {
 function beep(freq: number, duration: number, type: OscillatorType = 'square', vol = 0.08) {
   if (masterVolume === 0) return
   const c = getCtx()
+  // A gesture-initiated beep is a chance to unlock: if the context is
+  // still suspended, resume it so this and later notes are audible.
+  if (typeof (c as AudioContext).resume === 'function' && (c as AudioContext).state === 'suspended') {
+    void (c as AudioContext).resume().catch(() => {})
+  }
   const osc = c.createOscillator()
   const gain = c.createGain()
   osc.type = type
@@ -132,11 +167,22 @@ let ambientOscNode: OscillatorNode | null = null
 let ambientGainNode: GainNode | null = null
 let ambientRunning = false
 
-/** Start a very quiet low-frequency hum that loops continuously. */
+/**
+ * Start a very quiet low-frequency hum that loops continuously.
+ *
+ * Does NOT mark `ambientRunning` when the context is still suspended:
+ * an oscillator started on a suspended context is inaudible, and the
+ * old code left the flag stuck so later unlocks never retried the hum.
+ * The caller (unlock / unmute) retries after resume.
+ */
 export function playAmbientHum() {
   if (masterVolume === 0 || ambientRunning) return
   try {
     const c = getCtx()
+    if ((c as AudioContext).state === 'suspended') {
+      void (c as AudioContext).resume?.().catch(() => {})
+      return
+    }
     const osc = c.createOscillator()
     const gain = c.createGain()
 
