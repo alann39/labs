@@ -500,13 +500,14 @@ const App: React.FC = () => {
     return ok
   }, [])
 
-  // "Test Suara": resume + one audible bell, so the user can verify
-  // sound without waiting for an office event.
+  // "Test Suara": await the resume, then ring the loud test bell, so
+  // the user can verify sound without waiting for an office event.
   const testSound = useCallback(async () => {
-    const ok = await unlockAudio()
-    if (ok) sfx.playBell()
+    const ok = await sfx.playTestBell()
+    if (ok && !sfx.isMuted()) sfx.playAmbientHum()
+    setAudioUnlocked(sfx.isAudioUnlocked())
     setAudioState(sfx.getAudioState())
-  }, [unlockAudio])
+  }, [])
 
   useEffect(() => {
     const onFirstGesture = () => { void unlockAudio() }
@@ -558,6 +559,25 @@ const App: React.FC = () => {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [fsFallback])
+
+  // --- macOS traffic lights (title-bar dots) --------------------------
+  // The dots are real window controls, not decoration. Web limits apply:
+  // a page cannot close/minimize the browser window itself, so red
+  // closes the OFFICE VIEW (reopenable) and yellow minimizes it to a
+  // slim bar (restorable). Green is real fullscreen (Fullscreen API +
+  // the CSS fallback above). The old standalone FULLSCREEN button is
+  // gone — green does that job.
+  const [officeMinimized, setOfficeMinimized] = useState(false)
+  const [officeClosed, setOfficeClosed] = useState(false)
+  const closeOffice = useCallback(() => {
+    if (document.fullscreenElement) void document.exitFullscreen().catch(() => {})
+    setFsFallback(false)
+    setOfficeClosed(true)
+  }, [])
+  const reopenOffice = useCallback(() => {
+    setOfficeClosed(false)
+    setOfficeMinimized(false)
+  }, [])
 
   // --- Gate approval modal (centered, scrollable) ----------------------
   const [showGateModal, setShowGateModal] = useState(false)
@@ -1529,11 +1549,13 @@ const App: React.FC = () => {
   // Misc handlers
   // ---------------------------------------------------------------------------
 
-  // Effective day phase (respects manual override; incident mode forces night —
-  // a red room at noon reads as a bug)
-  const forcedNight = variant === 'incident'
-  const effectivePhase: DayPhase = forcedNight ? 'night'
-    : dayNightMode === 'auto' ? dayPhase
+  // Effective day phase (respects manual override). Incident mode tints
+  // the room red (room-tint) but must NOT lock the day/night mode:
+  // forcing night made the AUTO/DAY/NIGHT button look dead (clicks
+  // changed the label, the room stayed night). The user can always
+  // switch mode, even during an incident.
+  const nightAmount = dayNightMode === 'auto' ? nightOpacity : dayNightMode === 'night' ? 1 : 0
+  const effectivePhase: DayPhase = dayNightMode === 'auto' ? dayPhase
     : dayNightMode === 'day' ? 'morning' : 'night'
   const isNight = effectivePhase === 'night' || effectivePhase === 'dusk'
 
@@ -1614,11 +1636,11 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className={`app-wrapper${isFullscreen ? ' app-fullscreen' : ''}`}>
+    <div className={`app-wrapper${isFullscreen ? ' app-fullscreen' : ''}${officeMinimized ? ' app-minimized' : ''}${officeClosed ? ' app-closed' : ''}`}>
       <div className="title-bar">
-        <div className="title-bar-dot" style={{ background: '#ff5f57' }} />
-        <div className="title-bar-dot" style={{ background: '#febc2e' }} />
-        <div className="title-bar-dot" style={{ background: '#28c840' }} />
+        <button type="button" className="title-bar-dot" style={{ background: '#ff5f57' }} onClick={closeOffice} title="Tutup office view" aria-label="Tutup office view"><span className="title-bar-dot-symbol">×</span></button>
+        <button type="button" className="title-bar-dot" style={{ background: '#febc2e' }} onClick={() => setOfficeMinimized(true)} title="Minimize office" aria-label="Minimize office"><span className="title-bar-dot-symbol">−</span></button>
+        <button type="button" className={`title-bar-dot${isFullscreen ? ' is-active' : ''}`} style={{ background: '#28c840' }} onClick={toggleFullscreen} title={isFullscreen ? 'Keluar fullscreen (Esc)' : 'Fullscreen'} aria-label={isFullscreen ? 'Keluar fullscreen' : 'Fullscreen'}><span className="title-bar-dot-symbol">+</span></button>
         <span className="title-bar-text">{titlePrefix}{variant === 'incident' ? '🔥 PROD IS DOWN — OLYMPUS' : 'OLYMPUS — DEV TEAM DASHBOARD'}</span>
         <SessionStrip sessions={sessions} agents={agents} />
         <button
@@ -1630,15 +1652,20 @@ const App: React.FC = () => {
         >
           {dayNightMode === 'auto' ? 'AUTO' : dayNightMode === 'day' ? 'DAY' : 'NIGHT'}
         </button>
-        <button
-          className="title-bar-daynight"
-          onClick={toggleFullscreen}
-          title={isFullscreen ? 'Keluar fullscreen (Esc)' : 'Fullscreen seluruh halaman'}
-        >
-          {isFullscreen ? '⛶ KELUAR' : '⛶ FULLSCREEN'}
-        </button>
         <span className="title-bar-phase">{getPhaseLabel(effectivePhase)}</span>
       </div>
+
+      {officeClosed ? (
+        <div className="office-closed">
+          <p>Olympus ditutup.</p>
+          <button type="button" onClick={reopenOffice}>Buka lagi</button>
+        </div>
+      ) : officeMinimized ? (
+        <div className="office-minimized-bar">
+          <span>Olympus — Minimized</span>
+          <button type="button" onClick={() => setOfficeMinimized(false)}>Restore</button>
+        </div>
+      ) : null}
 
       <div className="app-body">
       <div className="office-view">
@@ -1707,7 +1734,7 @@ const App: React.FC = () => {
             className="room-background room-background-night"
             style={{
               backgroundImage: `url(${getRoomImage('night')})`,
-              opacity: forcedNight ? 1 : dayNightMode === 'auto' ? nightOpacity : dayNightMode === 'night' ? 1 : 0,
+              opacity: nightAmount,
             }}
           />
 
@@ -1715,7 +1742,7 @@ const App: React.FC = () => {
           <FurnitureRenderer onItemClick={handleFurnitureClick} items={furnitureItems} />
 
           {/* The session's real task list on the kanban whiteboard (nothing drawn while no session has tasks) */}
-          <TaskBoard sessions={sessions} night={forcedNight ? 1 : dayNightMode === 'auto' ? nightOpacity : dayNightMode === 'night' ? 1 : 0} onActivate={() => handleFurnitureClick('kanban-board')} />
+          <TaskBoard sessions={sessions} night={nightAmount} onActivate={() => handleFurnitureClick('kanban-board')} />
 
           {/* Agents */}
           {agents.map(agent => {
