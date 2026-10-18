@@ -677,7 +677,7 @@ describe('one Claude per session', () => {
     const { state, effects } = reduceOffice(liveOffice(), { type: 'session_started', ...S1, model: 'claude-sonnet-4-5-20250929' }, env())
     const c = claudeOf(state, 's1')!
     expect(c.role).toBe('assistant')
-    expect(c.name).toBe('Claude')
+    expect(c.name).toBe('Zeus · Manager')
     expect(c.sessionId).toBe('s1')
     expect(c.project).toBe('office')
     expect(c.model).toBe('claude-sonnet-4-5-20250929')
@@ -685,7 +685,7 @@ describe('one Claude per session', () => {
     expect(c.state).toBe('new-hire')
     expect(c.mainState).toBeUndefined()
     expect(sfx(effects)).toEqual(['doorOpen'])
-    expect(msgs(effects)).toEqual([expect.objectContaining({ sender: 'Claude', role: 'assistant', text: '🤖 clocked in · office', agentId: mainId('s1') })])
+    expect(msgs(effects)).toEqual([expect.objectContaining({ sender: 'Zeus · Manager', role: 'assistant', text: '⚡ clocked in · office', agentId: mainId('s1') })])
 
     // It walks in and sits down idle (nothing heard from its main thread yet), not typing
     const { state: settled } = settle(state)
@@ -702,7 +702,7 @@ describe('one Claude per session', () => {
     expect(c2.assignedSpotId).not.toBe(CLAUDE_HOME_SPOT)
     expect(c2.assignedSpotId).toMatch(/^spot-/)
     // With two terminals open the chat line names the project
-    expect(msgs(e2)[0].sender).toBe('Claude · api')
+    expect(msgs(e2)[0].sender).toBe('Zeus · Manager · api')
   })
 
   it('the first event of any kind from a session creates its Claude; nothing is created for an ended session', () => {
@@ -833,7 +833,7 @@ describe('one Claude per session', () => {
     expect(agent(state, 'agent-b')!.assignedSpotId).toBe('spot-4')
     // The workers still walk in with their task line, after the Claude's clock-in
     expect(texts(reduceOffice(liveOffice(), { type: 'snapshot', activeAgents: [worker('agent-a', 'debugger')], sessions }, env()).effects))
-      .toEqual(['🤖 clocked in · office', '📋 fix'])
+      .toEqual(['⚡ clocked in · office', '📋 fix'])
 
     // A browsing role still takes the filing cabinet
     const { state: browsing } = reduceOffice(liveOffice(), { type: 'snapshot', activeAgents: [worker('agent-e', 'Explore')], sessions }, env())
@@ -872,7 +872,7 @@ describe('sessions without hooks (the registry roster)', () => {
     expect(c.name).toBe(AGENT_CONFIGS['assistant'].title)
     expect(c.sessionId).toBe('r1')
     expect(c.assignedSpotId).toBe(CLAUDE_HOME_SPOT)
-    expect(msgs(flipped.effects)).toEqual([expect.objectContaining({ role: 'assistant', text: '🤖 clocked in · office', agentId: mainId('r1') })])
+    expect(msgs(flipped.effects)).toEqual([expect.objectContaining({ role: 'assistant', text: '⚡ clocked in · office', agentId: mainId('r1') })])
   })
 
   it('the snapshot seats a Claude only for hooked sessions, and walks out the Claude of one it now lists as unhooked', () => {
@@ -920,7 +920,7 @@ describe("main-thread activity lands on the session's Claude", () => {
     expect(c.statusText).toBe('editing src/a.ts')
     expect(agent(state, 'w1')).toBe(w1Before)
     expect(agent(state, 'w2')!.statusText).not.toBe('editing src/a.ts')
-    expect(msgs(effects)).toEqual([expect.objectContaining({ sender: 'Claude', role: 'assistant', text: '⚡ editing src/a.ts', agentId: mainId('s1') })])
+    expect(msgs(effects)).toEqual([expect.objectContaining({ sender: 'Zeus · Manager', role: 'assistant', text: '⚡ editing src/a.ts', agentId: mainId('s1') })])
 
     const failed = reduceOffice(state, { type: 'agent_working', ...S1, status: 'running: npm test', failed: true }, env())
     expect(claudeOf(failed.state, 's1')!.lastFailed).toBe(true)
@@ -1122,7 +1122,7 @@ describe('session_prompt: the boss hands the prompt over, Claude types', () => {
     const c = claudeOf(state, 's1')!
     expect(c.mainState).toBe('working')
     expect(c.statusText).toBe('📬 w1 reported back')
-    expect(msgs(effects)).toEqual([expect.objectContaining({ sender: 'Claude', text: '📬 w1 reported back' })])
+    expect(msgs(effects)).toEqual([expect.objectContaining({ sender: 'Zeus · Manager', text: '📬 w1 reported back' })])
     expect(sfx(effects)).toEqual([])
   })
 
@@ -1155,7 +1155,7 @@ describe('session_turn_end: the reply, then idle or waiting', () => {
     expect(c.statusText).toBe('turn over — idle')
     expect(c.waitingOn).toBeUndefined()
     expect(state.meta[mainId('s1')].idleSince).toBe(T0 + 5000)     // sleeping.png after 30 s (getEffect)
-    expect(msgs(effects)).toEqual([expect.objectContaining({ sender: 'Claude', text: 'All 289 tests pass.', tag: 'reply', agentId: mainId('s1') })])
+    expect(msgs(effects)).toEqual([expect.objectContaining({ sender: 'Zeus · Manager', text: 'All 289 tests pass.', tag: 'reply', agentId: mainId('s1') })])
 
     // The next prompt wakes it: the timer is cleared
     const { state: again } = reduceOffice(state, { type: 'session_prompt', ...S1, text: 'more' }, env({ now: T0 + 9000 }))
