@@ -4,7 +4,7 @@
  * command used to vanish with no reply.
  */
 import { describe, expect, it } from 'vitest'
-import { parseSlashCommand, slashReply, type SlashSnapshot } from '../src/slashCommands'
+import { parseSlashCommand, slashReply, filterSlashCommands, moveSlashHighlight, type SlashSnapshot } from '../src/slashCommands'
 
 const SNAP: SlashSnapshot = {
   agents: [
@@ -76,5 +76,27 @@ describe('slashReply', () => {
     const { reply } = slashReply('/foo', SNAP)
     expect(reply).toContain('/foo')
     expect(reply).toContain('/help')
+  })
+})
+
+describe('filterSlashCommands (menu)', () => {
+  it('lists all commands on bare "/" and filters by prefix', () => {
+    expect(filterSlashCommands('/')).toEqual(['/status', '/agents', '/help', '/incident', '/all-clear'])
+    expect(filterSlashCommands('/st')).toEqual(['/status'])
+    expect(filterSlashCommands('/a')).toEqual(['/agents', '/all-clear'])
+    expect(filterSlashCommands('/HELP')).toEqual(['/help'])
+  })
+  it('closes the menu for plain chat, args, and non-matches', () => {
+    expect(filterSlashCommands('hello')).toEqual([])
+    expect(filterSlashCommands('/status now')).toEqual([])
+    expect(filterSlashCommands('/zzz')).toEqual([])
+  })
+})
+
+describe('moveSlashHighlight', () => {
+  it('wraps around both directions', () => {
+    expect(moveSlashHighlight(4, 1, 5)).toBe(0)
+    expect(moveSlashHighlight(0, -1, 5)).toBe(4)
+    expect(moveSlashHighlight(1, 1, 5)).toBe(2)
   })
 })
