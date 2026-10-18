@@ -43,6 +43,7 @@ import TaskBoard from './components/TaskBoard'
 import { dispatchTaskBoards } from './taskBoard'
 import GatesPanel, { initialGates } from './components/GatesPanel'
 import AgoraPanel, { AGORA_SEED } from './components/AgoraPanel'
+import { parseSlashCommand, slashReply, type SlashSnapshot } from './slashCommands'
 import type { AgoraMessage, GateInfo, OlympusStatus } from './types'
 
 // ---------------------------------------------------------------------------
@@ -1587,6 +1588,37 @@ const App: React.FC = () => {
 
   const handleSendMessage = useCallback((text: string) => {
     const bossCfg = AGENT_CONFIGS[BOSS_ROLE] ?? AGENT_CONFIGS['default']
+    setAutoTypeText(undefined)
+    // Slash commands — client-side only: answered here from state the page
+    // already has, never sent to a backend (on Vercel there is none, so a
+    // relayed command vanished with no reply). /incident + /all-clear switch
+    // this tab immediately via dispatchIncident.
+    const cmd = parseSlashCommand(text)
+    if (cmd) {
+      const snapshot: SlashSnapshot = {
+        agents: agentsRef.current.map(a => {
+          const cfg = AGENT_CONFIGS[a.role]
+          return {
+            label: cfg ? `${cfg.emoji} ${cfg.title}` : `${a.emoji} ${a.name}`,
+            state: a.state,
+            task: a.task,
+          }
+        }),
+        gates: gates.map(g => ({ id: g.id, label: g.label, status: g.status })),
+        dayNightMode,
+        incident: variant === 'incident',
+        olympus: olympusStatus ? {
+          runId: olympusStatus.runId,
+          stage: olympusStatus.stage,
+          agent: olympusStatus.agent,
+          task: olympusStatus.task,
+        } : null,
+      }
+      const { reply, action } = slashReply(cmd, snapshot)
+      if (action) dispatchIncident({ type: 'command', at: Date.now(), cmd: action, reason: 'manual' })
+      addMsg('system', 'default', '#8b8d91', reply, true)
+      return
+    }
     addMsg(bossCfg.title, BOSS_ROLE, bossCfg.color, text)
     setAutoTypeText(undefined)
     // Send to server so Claude can read it. ?sim / ?video scripts stay local:
@@ -1597,7 +1629,7 @@ const App: React.FC = () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ sender: bossCfg.title, text }),
     }).catch(() => {})
-  }, [addMsg])
+  }, [addMsg, gates, dayNightMode, variant, olympusStatus])
 
   // Reactions added in the UI stay local: POST /chat/react is an agent route
   // (bearer token) since the server hardening, and the browser has no token.
