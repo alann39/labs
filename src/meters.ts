@@ -346,7 +346,7 @@ export function estimateTip(s: SessionStatus): string[] {
 export function needsStatusLineTip(meter: 'PAYROLL' | 'ELECTRICITY', estimated: SessionStatus[]): string[] {
   const what = meter === 'PAYROLL' ? 'cost' : 'tokens per minute'
   return [
-    `${meter} needs the status line — Claude Code reports ${what} only to its statusLine command`,
+    `${meter} needs the status line — it reports ${what} only to its statusLine command`,
     `no status line is registered for ${estimated.length === 1 ? 'this session' : `these ${estimated.length} sessions`} (a plugin install or claude -p); MEMORY is estimated from the transcript`,
     `register it with: ${STATUS_LINE_INSTALL} (from the Claude-Office checkout)`,
     ...estimated.slice(0, 4).map(s => `${sessionLabel(s)}: needs the status line`),

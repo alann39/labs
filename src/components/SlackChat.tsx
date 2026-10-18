@@ -230,7 +230,7 @@ const SlackChat: React.FC<SlackChatProps> = ({ messages, muted, volume, onToggle
               className={`slack-answer-toggle ${answerHere ? 'on' : 'off'}`}
               onClick={toggleAnswerHere}
               title={answerHere
-                ? 'Permission dialogs can be answered from the office (a card appears while Claude waits) — click to turn off'
+                ? 'Permission dialogs can be answered from the office (a card appears while Zeus waits) — click to turn off'
                 : 'Permission dialogs are answered in the terminal only — click to let the office answer them'}
               data-testid="answer-permissions"
             >

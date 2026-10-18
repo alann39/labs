@@ -99,7 +99,7 @@ const Meters: React.FC<MetersProps> = ({ onNotice }) => {
       const used = s.context.used
       if (used == null || used <= CLUTTER_THRESHOLD || warnedRef.current.has(s.sessionId)) continue
       warnedRef.current.add(s.sessionId)
-      onNoticeRef.current?.(`🗂️ Claude's desk is getting cluttered — ${sessionLabel(s)} is at ${Math.round(used)}% context${isEstimated(s) ? ' (estimated)' : ''}`)
+      onNoticeRef.current?.(`🗂️ Zeus's desk is getting cluttered — ${sessionLabel(s)} is at ${Math.round(used)}% context${isEstimated(s) ? ' (estimated)' : ''}`)
     }
   }, [sessions])
 
