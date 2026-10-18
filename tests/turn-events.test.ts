@@ -328,7 +328,7 @@ describe('the transcript stays behind the token', () => {
 
     const withToken = await chatRows(office)
     expect(withToken.map(m => [m.sender, m.msg_type])).toEqual([
-      ['Agent', null], ['Boss', 'prompt'], ['Claude', 'reply'], ['Antony', null], ['Reviewer', 'message'],
+      ['Agent', null], ['Boss', 'prompt'], ['Zeus · Manager', 'reply'], ['Antony', null], ['Reviewer', 'message'],
     ])
 
     const since = await request(office.server.app).get('/chat?since=1')
@@ -761,7 +761,7 @@ describe('session_turn_end (Stop)', () => {
     expect(main(office, ALPHA.sessionId)).not.toHaveProperty('needsYou')
     expect(await chatRows(office)).toEqual([
       expect.objectContaining({ sender: 'Boss', role: 'boss', msg_type: 'prompt', text: 'count /etc' }),
-      expect.objectContaining({ sender: 'Claude', role: 'assistant', msg_type: 'reply', text: '/etc has 154 entries.', recipient: null, is_system: 0 }),
+      expect.objectContaining({ sender: 'Zeus · Manager', role: 'assistant', msg_type: 'reply', text: '/etc has 154 entries.', recipient: null, is_system: 0 }),
     ])
   })
 
