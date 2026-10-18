@@ -1859,7 +1859,10 @@ const App: React.FC = () => {
               Hidden in Dunder Mifflin theme, whose art has no such sign in this spot. */}
           {theme !== 'office' && (
             <div className="door-sign-overlay" aria-hidden="true">
-              <span className="door-sign-icon">⚡</span>
+              {/* ✳ = flat text asterisk in orange, like the original sign's
+                  flat orange star (the ⚡ emoji rendered as a chunky color
+                  glyph and ignored the orange color). */}
+              <span className="door-sign-icon">✳</span>
               <span>ZEUS</span>
             </div>
           )}
