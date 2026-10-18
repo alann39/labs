@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react'
 import { ROLE_TO_CHAR } from '../config'
-import { getSpritePath, useTheme, toggleTheme, getTheme, themedDisplayName } from '../theme'
+import { getSpritePath, useTheme, themedDisplayName } from '../theme'
 import IncidentBadge from './IncidentBadge'
 import { postSetting } from '../permissions'
 import { officeHttpBase } from '../serverUrl'
@@ -73,7 +73,7 @@ interface SlackChatProps {
 
 const SlackChat: React.FC<SlackChatProps> = ({ messages, muted, volume, onToggleMute, onVolumeChange, onSendMessage, onReaction, autoTypeText, dayPhase, typingUser, lastSeenId, readOnly = false }) => {
   const theme = useTheme()
-  void theme // Why: subscribe so avatars re-render when /the-office toggles
+  void theme // Why: subscribe so avatars re-render when the theme changes
   const bodyRef = useRef<HTMLDivElement>(null)
   const [inputText, setInputText] = useState('')
   const [showSlashHint, setShowSlashHint] = useState(false)
@@ -333,7 +333,6 @@ const SlackChat: React.FC<SlackChatProps> = ({ messages, muted, volume, onToggle
             <span className="slack-slash-cmd">/status</span>
             <span className="slack-slash-cmd">/agents</span>
             <span className="slack-slash-cmd">/help</span>
-            <span className="slack-slash-cmd">/the-office</span>
             <span className="slack-slash-cmd">/incident</span>
             <span className="slack-slash-cmd">/all-clear</span>
           </div>
@@ -356,14 +355,9 @@ const SlackChat: React.FC<SlackChatProps> = ({ messages, muted, volume, onToggle
               }
               if (e.key === 'Enter' && inputText.trim()) {
                 const trimmed = inputText.trim()
-                // Client-side slash commands — not sent to backend
-                if (trimmed === '/the-office' || trimmed === '/theoffice') {
-                  toggleTheme()
-                  const nowOn = getTheme() === 'office'
-                  onSendMessage?.(nowOn ? '🧻 Dunder Mifflin mode: ON. Identity theft is not a joke.' : '🔁 Office theme: OFF')
-                } else {
-                  onSendMessage?.(trimmed)
-                }
+                // Slash commands are answered client-side in App.handleSendMessage
+                // (onSendMessage) — never sent to a backend.
+                onSendMessage?.(trimmed)
                 setInputText('')
                 setShowSlashHint(false)
               }
