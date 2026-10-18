@@ -77,7 +77,7 @@ function beep(freq: number, duration: number, type: OscillatorType = 'square', v
   osc.frequency.value = freq
   // Envelope: short attack (no click), then a decaying ring.
   //
-  // ROOT-CAUSE FIX (Test Suara silent while status showed "on"): the old
+  // ROOT-CAUSE FIX (bell silent while status showed "on"): the old
   // code set the peak then exponentialRampToValueAtTime(0.001) over the
   // whole duration — a 0.04-peak note fell below audibility within ~50 ms,
   // so the bell read as silence on laptop speakers. setTargetAtTime with
@@ -136,18 +136,6 @@ export function playBell() {
   beep(880, 0.35, 'sine', 0.5)
   setTimeout(() => beep(1320, 0.3, 'sine', 0.4), 150)
   setTimeout(() => beep(880, 0.25, 'sine', 0.3), 350)
-}
-
-/**
- * Test-bell for the "Test Suara" button: await the resume first, then
- * ring the loud bell. Returns whether audio is really running, so the
- * UI never claims "on" while the context is still suspended.
- */
-export async function playTestBell(): Promise<boolean> {
-  const ok = await resumeAudio()
-  if (!ok) return false
-  playBell()
-  return true
 }
 
 /** Needs-you chime: three soft rising notes — Claude is waiting on you */

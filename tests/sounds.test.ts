@@ -63,7 +63,7 @@ describe('sounds.ts unlock (no-sound-at-all bug)', () => {
     expect(sfx.getAudioState()).toBe('muted')
   })
 
-  it('playTestBell rings a clearly audible bell (peak >= 0.2) on a running context', async () => {
+  it('playBell rings a clearly audible bell (peak >= 0.2) on a running context', async () => {
     // Running-context fake: resume is a no-op, state already 'running'.
     class FakeRunningContext extends FakeAudioContext {
       state = 'running'
@@ -79,8 +79,7 @@ describe('sounds.ts unlock (no-sound-at-all bug)', () => {
     const gains: any[] = []
     const origCreateGain = (ctx as any).createGain.bind(ctx)
     ;(ctx as any).createGain = () => { const g = origCreateGain(); gains.push(g); return g }
-    const ok = await sfx.playTestBell()
-    expect(ok).toBe(true)
+    sfx.playBell()
     expect(gains.length).toBeGreaterThanOrEqual(1)
     const peak = gains[0].gain.linearRampToValueAtTime.mock.calls[0][0] as number
     expect(peak).toBeGreaterThanOrEqual(0.2)
