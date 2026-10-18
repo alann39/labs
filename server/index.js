@@ -30,6 +30,7 @@ import { dirname } from 'path'
 import { addMessage, getMessages, markSeen, addReaction, markInboxRead } from './chat-db.js'
 import db from './chat-db.js'
 import { mountStatus } from './status.js'
+import { mountOlympus } from './olympus.js'
 import { mountRegistry } from './sessions.js'
 import { mountTasks } from './tasks.js'
 import { mountPermissions, sanitiseSuggestions, redactPermission } from './permissions.js'
@@ -1610,6 +1611,10 @@ app.options('*', (_req, res) => res.sendStatus(204))
 // fed by the Claude Code status line and keyed by the same session ids as `sessions`
 const status = mountStatus(app, { requireToken, broadcast, staleMs: STALE_AGENT_MS, sessions })
 
+// Olympus adapter (server/olympus.js): Zeus's status.json → WS. Separate
+// from POST /status (the Claude Code status-line feed) — see olympus.js.
+const olympus = mountOlympus(app, { broadcast })
+
 /**
  * A permission was answered from the office: the session's hand comes down
  * the way a PostToolUse would lower it (the call is about to run, or Claude
@@ -2118,7 +2123,7 @@ function sendAgentMessage({ sender, role, text, recipient, type, replyTo, sender
     }
   }
 
-  const from = clampString(sender || 'Claude')
+  const from = clampString(sender || 'Zeus · Manager')
   const senderAgent = findAgent(senderId) ?? findAgent(from)
   let msgType = null
   let recipientAgent = null
@@ -2299,7 +2304,7 @@ function inspectMain(session, { withText }) {
   return {
     id: mainActivityId(session.id),
     kind: 'main',
-    name: 'Claude',
+    name: 'Zeus · Manager',
     role: 'assistant',
     state: main.state,
     status: session.lastStatus,
@@ -3093,7 +3098,7 @@ function processEvent(body) {
       else setMainState(session, 'idle', 'turn ended', now)
       console.log(`[main] ${sessionName(session)}: reply: ${logText(text)}`)
       // Claude's words become a chat row too (role 'assistant', msg_type 'reply')
-      const row = text ? addMessage({ sender: 'Claude', role: 'assistant', text, msgType: 'reply' }) : null
+      const row = text ? addMessage({ sender: 'Zeus · Manager', role: 'assistant', text, msgType: 'reply' }) : null
       saveAgents()
       return {
         type: 'session_turn_end',
