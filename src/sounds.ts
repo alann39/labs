@@ -7,6 +7,30 @@ function getCtx(): AudioContext {
   return ctx
 }
 
+/**
+ * Unlock audio after the first user interaction. Browsers start an
+ * AudioContext suspended until a gesture (autoplay policy), so every
+ * sound is silent until this runs. Safe to call repeatedly; a no-op
+ * when there is no context yet or it is already running.
+ */
+export function resumeAudio(): void {
+  try {
+    const c = getCtx()
+    if (c.state === 'suspended') void c.resume()
+  } catch (_) {
+    // AudioContext may not be available in some environments
+  }
+}
+
+/** True once the AudioContext is running (a user gesture has unlocked it). */
+export function isAudioUnlocked(): boolean {
+  try {
+    return !!ctx && ctx.state === 'running'
+  } catch (_) {
+    return false
+  }
+}
+
 function beep(freq: number, duration: number, type: OscillatorType = 'square', vol = 0.08) {
   if (masterVolume === 0) return
   const c = getCtx()

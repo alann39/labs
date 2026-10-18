@@ -33,6 +33,20 @@
 6. Whiteboard dari tasks beneran + inspector dari status.json.
 7. Test `?sim` → test live (Zeus tulis status.json → office update) → demo ke capt.
 
+## Status implementasi (2026-10-18) — Batch Olympus
+- ✅ **Nama dewa:** `AGENT_CONFIGS['assistant']` → Zeus · Manager; semua string `sender: 'Claude'` di `App.tsx` / `officeReducer.ts` → Zeus; `<title>` + title-bar → "Olympus — Dev Team Dashboard" / "OLYMPUS — DEV TEAM DASHBOARD". `CLAUDE_ID` / `CLAUDE_ROLE` tetap sebagai identifier internal (bukan string tampil). Test `officeReducer` / `inspector` yang assert nama lama ikut diupdate.
+- ✅ **Suara:** `sounds.ts` tambah `resumeAudio()` + `isAudioUnlocked()` (AudioContext start suspended sampai gesture pertama — aturan autoplay browser). Banner "🔊 Klik untuk aktifin suara" tampil sampai interaksi pertama; klik → resume + ambient hum (tetap hormat `muted`).
+- ✅ **Adapter (`server/olympus.js`, terpisah dari `POST /status` status-line):**
+  - `POST /olympus/status` — body status Zeus `{ runId, stage, agent, task, files, tickets, gate, approval, agora }` → broadcast WS `{ type: 'status_update', olympus }`.
+  - `POST /olympus/status` dengan `{ kind: 'gate_waiting', gate, docVersion }` → broadcast `{ type: 'gate_waiting', gateWaiting }`.
+  - `POST /olympus/status` dengan `{ kind: 'agora_message', from, to, type, body, runId, stage }` → broadcast `{ type: 'agora_message', agoraMessage }`. Bare Agora message `{ from, to, type: 'minta-review', body }` juga diterima (envelope pakai `kind` karena `type` sudah dipakai Agora type).
+  - `GET /olympus/status` → `{ ok, olympus, gates, agora }` (state in-memory).
+  - Polling opsional: `OLYMPUS_STATUS_FILE` (default `<cwd>/status.json`) dibaca tiap 5 detik; perubahan → broadcast `status_update` (+ `gate_waiting` bila `gate.waiting` set, + `agora_message` baru). File tidak wajib; payload jelek = skip, tidak pernah crash.
+  - Format `status.json` yang ditulis Zeus: `{ runId, stage, agent, task, files[], tickets[], gate, approval, agora[], gate?: { waiting, docVersion } }`.
+  - Frontend: `handleEvent` di `App.tsx` menangani `status_update` / `gate_waiting` / `agora_message`. `?sim` tetap jalan tanpa server.
+- ✅ **Panel Gates (`src/components/GatesPanel.tsx`):** 0.5 / 1.6 / 1.75 / F / S / 5.5 / 6, status locked/active/waiting/passed/revisi/stopped. `gate_waiting` → office PAUSED + banner "⏸️ NUNGGU APPROVAL LO — Gate X" + tombol Gas/Revisi/Stop. V1: tombol tulis approval record + toast "Approval tercatat — eksekusi via chat", TIDAK auto-deploy. Di `?sim`, Gate 0.5 jadi waiting 10 detik setelah load (demo).
+- ✅ **Panel Agora (`src/components/AgoraPanel.tsx`):** list `{ from, to, type, body, runId, stage, time }`, badge type, `keputusan` tampil khusus (hanya Zeus). Klik pesan → inspect pengirim + bubble verbatim di atas karakternya. Seed 4 pesan (Hephaestus→Hades avatar_url, dst) agar panel tidak kosong di `?sim`. WS `agora_message` append ke list.
+
 ## Yang PARKIR (tidak dibangun sekarang)
 - Pulau di Atas Awan + lesehan + blob 3D (mockup artifact + 05/06/07 pulau tetap tersimpan, bisa jadi V2 skin).
 - Vercel deploy live (V2, perlu polling fallback).
