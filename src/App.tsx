@@ -19,6 +19,7 @@ import { useAgentSocket } from './hooks/useAgentSocket'
 import { dispatchMeters } from './meters'
 import * as sfx from './sounds'
 import { findWaypointPath } from './agentManager'
+import { secondsSince } from './relativeTime'
 import {
   reduceOffice, stepOffice, initialOfficeState,
   moveAgentsForEvent, returnAgentsFromEvent, pickSingleEventAgent, walkDurationMs, errandWaitMs, checkErrand,
@@ -576,6 +577,7 @@ const App: React.FC = () => {
   const [liveRunActive, setLiveRunActive] = useState<boolean | null>(null)
   const [liveUpdatedAt, setLiveUpdatedAt] = useState<string | null>(null)
   const liveSigRef = useRef<string | null>(null)
+  const [lastDataAt, setLastDataAt] = useState<number>(() => (isSimMode ? Date.now() : 0))
   useEffect(() => {
     if (isSimMode) return
     let cancelled = false
@@ -615,6 +617,7 @@ const App: React.FC = () => {
         // Absent/empty agents[] = old behavior (boss only), never a crash.
         if (snapshot.agents !== undefined) syncLiveAgentsRef.current(snapshot.agents)
         setLiveConnected(true)
+        setLastDataAt(Date.now())
       } catch (err) {
         if (cancelled) return
         setLivePollError(err as OlympusFetchError)
@@ -625,6 +628,13 @@ const App: React.FC = () => {
     void applyOnce()
     const t = setInterval(() => { void applyOnce() }, OLYMPUS_POLL_MS)
     return () => { cancelled = true; clearInterval(t) }
+  }, [])
+
+  // Timer for "· update X dtk lalu" label — updates every second
+  const [timerTick, setTimerTick] = useState(0)
+  useEffect(() => {
+    const interval = setInterval(() => setTimerTick(t => t + 1), 1000)
+    return () => clearInterval(interval)
   }, [])
 
   // LIVE ↔ SIM toggle: same page, ?sim toggled, full reload (a soft flip
@@ -744,6 +754,7 @@ const App: React.FC = () => {
       setGates(prev => prev.map(g => (g.id === '0.5' ? { ...g, status: 'waiting' } : g)))
       setGateWaiting({ gate: '0.5', docVersion: 'brief v1' })
       setGatePaused(true)
+      setLastDataAt(Date.now())
     }, 10000)
     return () => clearTimeout(t)
   }, [])
@@ -1266,6 +1277,7 @@ const App: React.FC = () => {
         }
 
         chatterIdx++
+        setLastDataAt(Date.now())
       }, 7000)
       intervals.push(chatterInterval)
     }, 18000))
@@ -1840,6 +1852,9 @@ const App: React.FC = () => {
           >
             SIM
           </button>
+          <span className="title-bar-relative-time">
+            · update {lastDataAt === 0 ? '—' : `${secondsSince(lastDataAt, Date.now())} dtk lalu`}
+          </span>
         </div>
         <SessionStrip sessions={sessions} agents={agents} />
         <button

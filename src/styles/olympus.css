@@ -451,6 +451,15 @@
   box-shadow: 0 0 4px #2ecc71;
 }
 
+.title-bar-relative-time {
+  font-size: 11px;
+  opacity: 0.6;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  color: inherit;
+}
+
 /* Empty state (LIVE, no status.json yet): same panel shell as Gates/Agora,
    never the ?sim seed — live must not show demo data as real. */
 .olympus-live-empty {
