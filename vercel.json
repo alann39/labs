@@ -1,5 +1,5 @@
 {
-  "buildCommand": "mkdir -p dist && cat preview-mockup/mockup-part-* > dist/index.html",
+  "buildCommand": "mkdir -p dist && cat preview-mockup/p-* > dist/index.html",
   "outputDirectory": "dist",
   "framework": null,
   "installCommand": "echo skip-install"
