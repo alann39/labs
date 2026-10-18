@@ -1119,9 +1119,22 @@
   transition: background 0.1s, border-color 0.1s;
 }
 
-.slack-slash-cmd:hover {
+.slack-slash-cmd:hover,
+.slack-slash-cmd.selected {
   background: rgba(204, 120, 92, 0.22);
   border-color: rgba(204, 120, 92, 0.45);
+}
+
+.slack-slash-cmd:focus-visible {
+  outline: 2px solid #cc785c;
+  outline-offset: 1px;
+}
+
+.slack-slash-none {
+  font-size: 10px;
+  color: #8a8d93;
+  font-family: 'JetBrains Mono', monospace;
+  padding: 2px 4px;
 }
 
 @keyframes slackMsgIn {
