@@ -12,7 +12,7 @@ export function StatCard({ label, value, context, action }: { label: string; val
         {action}
       </div>
       <div className="stat-value">
-        <AnimatedCounter value={value} prefix="Rp " locale="id-ID" label={label} animateOnView />
+        <AnimatedCounter value={value} prefix="Rp " locale="id-ID" animateOnView />
       </div>
       <div className="stat-ctx">{context}</div>
     </article>
@@ -27,7 +27,7 @@ export function StatCell({ label, value, highlight = false, action }: { label: s
         {action}
       </div>
       <div className="stat-value" style={{ marginTop: 8 }}>
-        <AnimatedCounter value={value} prefix="Rp " locale="id-ID" label={label} animateOnView />
+        <AnimatedCounter value={value} prefix="Rp " locale="id-ID" animateOnView />
       </div>
     </div>
   );

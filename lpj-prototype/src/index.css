@@ -1,111 +1,229 @@
+/* App layout for LPJ Kas Kecil, built on Arc foundation tokens
+   (components/arc/foundation.css). The Vite starter stylesheet that
+   used to live here (centered 1126px #root, 56px h1, purple vars)
+   fought the foundation and crushed the shell — removed 2026-11-06.
+   All app-shell classes the views reference are defined below. */
+
+* { box-sizing: border-box; }
+
+/* Font: Manrope everywhere (capt's call, 2026-11-06). Foundation tokens
+   point at --font-geist/--font-inter; redirect both to Manrope. */
 :root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --social-bg: rgba(244, 243, 236, 0.5);
-  --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
-
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
-
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
-  color-scheme: light dark;
-  color: var(--text);
-  background: var(--bg);
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-
-  @media (max-width: 1024px) {
-    font-size: 16px;
-  }
+  --font-geist: "Manrope";
+  --font-inter: "Manrope";
+  --font-display: "Manrope", sans-serif;
+  --font-body: "Manrope", sans-serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
-  }
-
-  #social .button-icon {
-    filter: invert(1) brightness(2);
-  }
-}
-
-#root {
-  width: 1126px;
-  max-width: 100%;
-  margin: 0 auto;
-  text-align: center;
-  border-inline: 1px solid var(--border);
-  min-height: 100svh;
-  display: flex;
-  flex-direction: column;
-  box-sizing: border-box;
-}
+html, body { margin: 0; padding: 0; }
 
 body {
-  margin: 0;
+  font-family: "Manrope", system-ui, -apple-system, sans-serif;
+  font-size: 14px;
+  line-height: var(--leading-body, 1.4);
+  letter-spacing: var(--tracking-body, -0.01em);
+  background: var(--surface-muted);
+  color: var(--foreground);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
-h1,
-h2 {
-  font-family: var(--heading);
-  font-weight: 500;
-  color: var(--text-h);
+h1, h2, h3, h4, p { margin: 0; }
+button { font: inherit; }
+.num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+.total { font-weight: 500; }
+.sub { font-size: 14px; color: var(--text-secondary); }
+
+/* ---------- Shell: floating sidebar panel on muted canvas ---------- */
+
+.shell {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-6);
+  max-width: 1560px;
+  margin: 0 auto;
+  padding: var(--space-6);
 }
 
-h1 {
-  font-size: 56px;
-  letter-spacing: -1.68px;
-  margin: 32px 0;
-  @media (max-width: 1024px) {
-    font-size: 36px;
-    margin: 20px 0;
-  }
-}
-h2 {
-  font-size: 24px;
-  line-height: 118%;
-  letter-spacing: -0.24px;
-  margin: 0 0 8px;
-  @media (max-width: 1024px) {
-    font-size: 20px;
-  }
-}
-p {
-  margin: 0;
+.sidebar {
+  width: 264px;
+  flex: none;
+  position: sticky;
+  top: var(--space-6);
+  min-height: calc(100vh - var(--space-12));
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-surface);
+  box-shadow: var(--shadow-resting);
+  padding: 20px;
 }
 
-code,
-.counter {
-  font-family: var(--mono);
-  display: inline-flex;
-  border-radius: 4px;
-  color: var(--text-h);
+.brand { display: flex; align-items: center; gap: var(--space-3); padding: 0 var(--space-1); }
+.brand-mark {
+  width: 40px; height: 40px; flex: none;
+  display: grid; place-items: center;
+  border-radius: 12px;
+  background: var(--accent);
+  color: var(--accent-foreground);
+  font-size: 14px; font-weight: 500;
+}
+.brand-name { font-size: 16px; font-weight: 500; color: var(--foreground); }
+.brand-sub { font-size: 12px; color: var(--text-muted); margin-top: 1px; }
+
+.sidebar nav { display: flex; flex-direction: column; gap: var(--space-1); }
+
+.nav-item {
+  display: flex; align-items: center; gap: var(--space-3);
+  width: 100%; height: var(--control-height-md);
+  padding: 0 var(--space-3);
+  border: 0; border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 14px; font-weight: 500;
+  text-align: left; cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-standard), color var(--duration-fast) var(--ease-standard);
+}
+.nav-item > svg { flex: none; }
+@media (hover: hover) and (pointer: fine) {
+  .nav-item:hover { background: var(--surface-muted); color: var(--foreground); }
+}
+.nav-item.active { background: var(--accent-subtle); color: var(--accent-strong); }
+
+.sidebar-foot { margin-top: auto; display: flex; flex-direction: column; gap: var(--space-3); }
+
+.period-card {
+  background: var(--surface-muted);
+  border-radius: 14px; /* concentric: surface radius 34 − sidebar padding 20 */
+  padding: var(--space-4);
+}
+.period-card .k { font-size: 12px; color: var(--text-muted); }
+.period-card .v { font-size: 16px; font-weight: 500; margin-top: 2px; }
+.period-card .s { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+
+.main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--space-6); }
+
+/* ---------- Page head ---------- */
+
+.page-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-4); }
+.page-head h1 { font-size: var(--text-2xl); font-weight: 500; letter-spacing: var(--tracking-display); line-height: 1.15; }
+.page-head .sub { margin-top: var(--space-1); }
+.head-actions { display: flex; align-items: center; gap: var(--space-2); flex: none; }
+
+.icon-btn {
+  width: var(--control-height-md); height: var(--control-height-md);
+  display: grid; place-items: center;
+  border-radius: var(--radius-control);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: border-color var(--duration-fast) var(--ease-standard), color var(--duration-fast) var(--ease-standard);
+}
+@media (hover: hover) and (pointer: fine) {
+  .icon-btn:hover { border-color: var(--border-strong); color: var(--foreground); }
 }
 
-code {
-  font-size: 15px;
-  line-height: 135%;
-  padding: 4px 8px;
-  background: var(--code-bg);
+/* ---------- Cards & stats ---------- */
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-surface);
+  box-shadow: var(--shadow-resting);
+  padding: var(--space-6);
+}
+.card-title { font-size: 18px; font-weight: 500; }
+.card-sub { font-size: 14px; color: var(--text-secondary); margin-top: 2px; }
+
+.grid-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-4); }
+
+.stat-label { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); font-size: 14px; color: var(--text-secondary); }
+.stat-value { font-size: var(--text-xl); font-weight: 500; letter-spacing: -0.01em; line-height: 1.15; margin-top: var(--space-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.grid-metrics > * { min-width: 0; }
+/* AnimatedCounter ships font-size: var(--text-3xl) on its root — too wide
+   for real miliar values in a 4-up grid (they bled across card borders).
+   Pin it to text-xl inside stat blocks. */
+.stat-value > span { font-size: var(--text-xl); }
+.stat-ctx { font-size: 12px; color: var(--text-muted); margin-top: var(--space-1); }
+
+.stat-strip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-4); align-items: stretch; }
+.stat-cell { padding: var(--space-4); border-radius: var(--radius-panel); }
+.stat-cell.hl { background: var(--accent-subtle); }
+
+.toolbar { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
+.spacer { flex: 1; }
+.sep { width: 1px; height: 24px; background: var(--border); flex: none; }
+
+.grid-2col { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: var(--space-6); align-items: start; }
+
+.footnote { font-size: 12px; color: var(--text-muted); line-height: 1.55; }
+
+.action-bar { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); flex-wrap: wrap; }
+.action-bar .k { font-size: 14px; color: var(--text-secondary); }
+.action-bar .v { font-size: 22px; font-weight: 500; font-variant-numeric: tabular-nums; margin-top: 2px; }
+
+.cell-input {
+  width: 170px; height: var(--control-height-md);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  padding: 0 var(--space-3);
+  font: inherit; font-size: 14px; text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--foreground);
+}
+.cell-input:focus { border-color: var(--accent); outline: none; }
+
+/* ---------- Grouped chart ---------- */
+
+.chart-legend { display: flex; gap: var(--space-4); font-size: 12px; color: var(--text-secondary); }
+.chart-legend > span { display: inline-flex; align-items: center; gap: 6px; }
+.legend-dot { width: 10px; height: 10px; border-radius: 3px; display: inline-block; flex: none; }
+
+.chart-plot { position: relative; margin: var(--space-5) 0 36px; padding-left: 30px; }
+.chart-grid { position: absolute; left: 30px; right: 0; border-top: 1px solid var(--border-subtle); }
+.chart-grid .num { position: absolute; left: -30px; top: -8px; width: 22px; text-align: right; font-size: 12px; color: var(--text-muted); }
+.chart-groups { display: flex; align-items: flex-end; gap: var(--space-6); }
+.chart-group { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; }
+.chart-bars { display: flex; align-items: flex-end; gap: 14px; height: 100%; }
+.chart-bar { width: 24px; flex: none; position: relative; border-radius: 6px 6px 0 0; }
+.chart-bar-val { position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%); font-size: 11px; font-weight: 500; white-space: nowrap; }
+.chart-axis { border-top: 1px solid var(--border-strong); }
+.chart-axis + .chart-groups { position: absolute; left: 30px; right: 0; top: 100%; align-items: flex-start; }
+.chart-axis + .chart-groups .chart-group { justify-content: flex-start; height: auto; }
+.chart-group-label { font-size: 12px; color: var(--text-secondary); margin-top: var(--space-2); text-align: center; }
+
+/* ---------- Popover rows & help ---------- */
+
+.pop-rows { display: flex; flex-direction: column; gap: var(--space-2); min-width: 250px; }
+.pop-row { display: flex; justify-content: space-between; gap: var(--space-6); font-size: 14px; }
+.pop-note { font-size: 12px; color: var(--text-muted); line-height: 1.55; border-top: 1px solid var(--border-subtle); padding-top: var(--space-2); margin-top: var(--space-2); }
+
+.help-steps { display: flex; flex-direction: column; gap: var(--space-4); }
+.help-step { display: flex; gap: var(--space-3); }
+.help-step .n {
+  width: 24px; height: 24px; flex: none;
+  display: grid; place-items: center;
+  border-radius: var(--radius-pill);
+  background: var(--accent-subtle); color: var(--accent-strong);
+  font-size: 12px; font-weight: 500;
+}
+.help-step .t { font-size: 14px; font-weight: 500; }
+.help-step .d { font-size: 14px; color: var(--text-secondary); line-height: 1.55; }
+
+/* ---------- Responsive ---------- */
+
+@media (max-width: 1100px) {
+  .grid-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .stat-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .grid-2col { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 900px) {
+  .shell { flex-direction: column; padding: var(--space-4); }
+  .sidebar { width: 100%; position: static; min-height: 0; }
+  .main { width: 100%; }
 }
