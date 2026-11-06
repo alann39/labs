@@ -1,0 +1,1 @@
+{"compilerOptions":{"baseUrl":".","jsx":"react-jsx","paths":{"@/*":["./src/*"]}},"extends":"astro/tsconfigs/strict"}
