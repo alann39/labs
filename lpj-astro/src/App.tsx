@@ -51,7 +51,7 @@ const HELP: Record<View, { title: string; steps?: Array<{ t: string; d: string }
 };
 
 function Shell() {
-  const { month } = useStore();
+  const { month, offline, syncState, hasSaved } = useStore();
   const [view, setView] = useState<View>("dashboard");
   const [vaId, setVaId] = useState("ga");
   const [helpOpen, setHelpOpen] = useState(false);
@@ -110,10 +110,30 @@ function Shell() {
             <LogOut size={20} strokeWidth={1.75} />
             Keluar
           </button>
+          {(syncState === "saving" || (syncState === "idle" && hasSaved)) && (
+            <div style={{ fontSize: 12, color: "var(--text-muted)", padding: "2px 12px" }} role="status">
+              {syncState === "saving" ? "Menyimpan…" : "Tersimpan di server"}
+            </div>
+          )}
         </div>
       </aside>
 
       <main className="main">
+        {offline && (
+          <div
+            role="alert"
+            style={{
+              marginBottom: 16,
+              padding: "10px 14px",
+              borderRadius: 12,
+              border: "1px solid var(--warning)",
+              color: "var(--text-secondary)",
+              fontSize: 13,
+            }}
+          >
+            Mode offline — perubahan tidak tersimpan ke server.
+          </div>
+        )}
         {view === "dashboard" && <Dashboard go={setView} openLedger={openLedger} onHelp={openHelp} />}
         {view === "ledger" && <Ledger vaId={vaId} setVaId={setVaId} go={setView} onHelp={openHelp} />}
         {view === "closing" && <Closing go={setView} onHelp={openHelp} />}
