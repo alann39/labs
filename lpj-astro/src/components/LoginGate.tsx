@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { Input } from "@/components/arc/input/input";
+import { PasswordField } from "@/components/arc/password-field/password-field";
 import { Button } from "@/components/arc/button/button";
 
 /** Kunci sesi login gate (UI saja — fase frontend-only, bukan autentikasi beneran). */
@@ -85,15 +86,19 @@ export function LoginGate({ children }: { children: ReactNode }) {
             value={username}
             onChange={(e) => setUsername(e.target.value)}
           />
-          <Input
-            label="Kata sandi"
-            name="password"
-            type="password"
-            autoComplete="current-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            error={error}
-          />
+          <div>
+            <PasswordField
+              label="Kata sandi"
+              name="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              messages={{ showPassword: "Tampilkan kata sandi", hidePassword: "Sembunyikan kata sandi" }}
+            />
+            {error && (
+              <span className="login-error" role="alert">{error}</span>
+            )}
+          </div>
           <Button type="submit" style={{ width: "100%" }}>
             Masuk
           </Button>

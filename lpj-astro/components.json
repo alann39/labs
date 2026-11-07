@@ -1,0 +1,1 @@
+{"$schema":"https://ui.shadcn.com/schema.json","aliases":{"components":"@/components","hooks":"@/hooks","lib":"@/lib","ui":"@/components/arc","utils":"@/lib/utils"},"iconLibrary":"lucide","rsc":true,"style":"default","tailwind":{"baseColor":"neutral","config":"tailwind.config.ts","css":"src/index.css","cssVariables":true,"prefix":""},"tsx":true}

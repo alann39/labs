@@ -6,10 +6,12 @@ import { Textarea } from "@/components/arc/textarea/textarea";
 import { MoneyInput } from "@/components/arc/money-input/money-input";
 import { DatePicker } from "@/components/arc/date-picker/date-picker";
 import { FileDropzone } from "@/components/arc/file-dropzone/file-dropzone";
-import SegmentedControl from "@/components/arc/segmented-control/segmented-control";
+import { ToggleGroup, ToggleGroupItem } from "@/components/arc/toggle-group/toggle-group";
 import { SortableDataTable } from "@/components/arc/sortable-data-table/sortable-data-table";
 import { Badge } from "@/components/arc/badge/badge";
 import { Dialog, DialogContent, DialogClose } from "@/components/arc/dialog/dialog";
+import { ScrollArea } from "@/components/arc/scroll-area/scroll-area";
+import { Tooltip } from "@/components/arc/tooltip/tooltip";
 import { Alert } from "@/components/arc/alert/alert";
 import { EmptyState } from "@/components/arc/empty-state/empty-state";
 import { PageHead } from "../components/PageHead";
@@ -104,81 +106,102 @@ export function MasukFormDialog({
     onOpenChange(false);
   };
 
+  const jenisControl = (
+    <div>
+      <div className="form-label">Jenis dana masuk</div>
+      <ToggleGroup
+        label="Jenis dana masuk"
+        size="sm"
+        value={jenis}
+        onValueChange={(v) => setJenis(v as JenisForm)}
+      >
+        <ToggleGroupItem value="kembali">Pengisian Kembali</ToggleGroupItem>
+        <ToggleGroupItem value="khusus">Pengisian Khusus</ToggleGroupItem>
+      </ToggleGroup>
+    </div>
+  );
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent title={editing ? "Edit dana masuk" : "Input dana masuk"} description="Dana masuk yang dicatat di sini adalah dana yang sudah ditransfer ke VA.">
-        <div className="form-stack">
-          {vaTerkunci && (
-            <Alert tone="warning" title="VA ini sudah closing">
-              Catatan untuk VA yang sudah closing di bulan ini tidak bisa diubah.
-            </Alert>
-          )}
-          <Select label="Virtual account (VA)" value={vaId} onValueChange={setVaId} options={vaOptions} />
-          <DatePicker label="Tanggal transfer" value={tanggal} onChange={setTanggal} locale="id-ID" format={{ day: "2-digit", month: "short", year: "numeric" }} />
-          <MoneyInput
-            label="Nominal dana masuk"
-            currency="IDR"
-            currencies={["IDR"]}
-            locale="id-ID"
-            value={nominal}
-            onValueChange={setNominal}
-            quickAdd={[]}
-            description="Otomatis terformat dengan pemisah ribuan saat diketik."
-          />
-          {editAwal ? (
-            <div>
-              <div className="form-label">Jenis dana masuk</div>
-              <Badge tone="neutral">Isi Awal</Badge>
-              <p className="footnote" style={{ marginTop: 8 }}>Isi awal dibuat otomatis dari closing sebesar saldo normal penuh dan jenisnya tidak bisa diubah.</p>
+      <DialogContent className="form-dialog" title={editing ? "Edit dana masuk" : "Input dana masuk"} description="Dana masuk yang dicatat di sini adalah dana yang sudah ditransfer ke VA.">
+        <ScrollArea className="form-scroll" label="Formulir dana masuk">
+          <div className="form-stack" style={{ paddingBottom: "var(--space-2)" }}>
+            {vaTerkunci && (
+              <Alert tone="warning" title="VA ini sudah closing">
+                Catatan untuk VA yang sudah closing di bulan ini tidak bisa diubah.
+              </Alert>
+            )}
+            <div className="form-grid">
+              <Select label="Virtual account (VA)" value={vaId} onValueChange={setVaId} options={vaOptions} />
+              <DatePicker label="Tanggal transfer" value={tanggal} onChange={setTanggal} locale="id-ID" format={{ day: "2-digit", month: "short", year: "numeric" }} />
             </div>
-          ) : (
-            <div>
-              <div className="form-label">Jenis dana masuk</div>
-              <SegmentedControl
-                label="Jenis dana masuk"
-                options={[
-                  { value: "kembali", label: "Pengisian Kembali" },
-                  { value: "khusus", label: "Pengisian Khusus" },
-                ]}
-                value={jenis}
-                onValueChange={(v) => setJenis(v as JenisForm)}
-              />
-            </div>
-          )}
-          {jenisEfektif === "kembali" && !editAwal && (
-            <Select
-              label="LPJ reguler yang diisi kembali"
-              value={lpjId}
-              onValueChange={setLpjId}
-              placeholder="Pilih LPJ"
-              options={lpjOptions}
+            <MoneyInput
+              label="Nominal dana masuk"
+              currency="IDR"
+              currencies={["IDR"]}
+              locale="id-ID"
+              value={nominal}
+              onValueChange={setNominal}
+              quickAdd={[]}
             />
-          )}
-          {jenisEfektif === "kembali" && !editAwal && lpjOptions.length === 0 && (
-            <p className="footnote">VA ini belum punya LPJ reguler yang bebas. Catat LPJ-nya dulu di halaman LPJ.</p>
-          )}
-          {jenisEfektif === "khusus" && (
-            <>
-              <FileDropzone
-                label="Referensi persetujuan (opsional)"
-                description="Seret file referensi persetujuan manajemen ke sini, atau klik untuk memilih. Baru nama file yang disimpan."
-                accept=".pdf,.jpg,.jpeg,.png"
-                multiple={false}
-                maxFiles={1}
-                onFilesChange={(files) => setReferensiNama(files[0]?.name)}
-              />
-              {referensiNama && <p className="footnote">Referensi saat ini: {referensiNama}</p>}
-            </>
-          )}
-          <Textarea label="Keterangan (opsional)" value={keterangan} onChange={(e) => setKeterangan(e.target.value)} rows={3} placeholder="Keterangan dana masuk" />
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
-            <DialogClose asChild>
-              <Button variant="secondary">Batal</Button>
-            </DialogClose>
-            <Button disabled={!valid} onClick={simpan}>
-              {editing ? "Simpan perubahan" : "Simpan dana masuk"}
-            </Button>
+            {editAwal ? (
+              <>
+                <div>
+                  <div className="form-label">Jenis dana masuk</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", flexWrap: "wrap" }}>
+                    <Badge tone="neutral">Isi Awal</Badge>
+                    <span className="footnote">Dibuat otomatis dari closing, tidak bisa diubah.</span>
+                  </div>
+                </div>
+                <Textarea label="Keterangan (opsional)" value={keterangan} onChange={(e) => setKeterangan(e.target.value)} rows={2} style={{ minHeight: 70 }} placeholder="Keterangan dana masuk" />
+              </>
+            ) : jenisEfektif === "kembali" ? (
+              <>
+                <div className="form-grid">
+                  {jenisControl}
+                  <div>
+                    <Select
+                      label="LPJ reguler yang diisi kembali"
+                      value={lpjId}
+                      onValueChange={setLpjId}
+                      placeholder="Pilih LPJ"
+                      options={lpjOptions}
+                    />
+                    {lpjOptions.length === 0 && (
+                      <p className="footnote" style={{ marginTop: "var(--space-2)" }}>VA ini belum punya LPJ reguler yang bebas. Catat LPJ-nya dulu di halaman LPJ.</p>
+                    )}
+                  </div>
+                </div>
+                <Textarea label="Keterangan (opsional)" value={keterangan} onChange={(e) => setKeterangan(e.target.value)} rows={2} style={{ minHeight: 70 }} placeholder="Keterangan dana masuk" />
+              </>
+            ) : (
+              <>
+                {jenisControl}
+                {jenisEfektif === "khusus" && (
+                  <div>
+                    <FileDropzone
+                      label="Referensi persetujuan (opsional)"
+                      description="Seret file referensi persetujuan manajemen ke sini, atau klik untuk memilih. Baru nama file yang disimpan."
+                      accept=".pdf,.jpg,.jpeg,.png"
+                      multiple={false}
+                      maxFiles={1}
+                      onFilesChange={(files) => setReferensiNama(files[0]?.name)}
+                    />
+                    {referensiNama && <p className="footnote" style={{ marginTop: "var(--space-2)" }}>Referensi saat ini: {referensiNama}</p>}
+                  </div>
+                )}
+                <Textarea label="Keterangan (opsional)" value={keterangan} onChange={(e) => setKeterangan(e.target.value)} rows={2} style={{ minHeight: 70 }} placeholder="Keterangan dana masuk" />
+              </>
+            )}
           </div>
+        </ScrollArea>
+        <div className="form-actions" style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
+          <DialogClose asChild>
+            <Button variant="secondary">Batal</Button>
+          </DialogClose>
+          <Button disabled={!valid} onClick={simpan}>
+            {editing ? "Simpan perubahan" : "Simpan dana masuk"}
+          </Button>
         </div>
       </DialogContent>
     </Dialog>
@@ -354,12 +377,16 @@ export function DanaMasukView({ onHelp }: { onHelp: () => void }) {
                   const r = row as unknown as Row;
                   return (
                     <span className="row-actions">
-                      <button type="button" className="row-icon-btn" disabled={r.terkunci} aria-label={`Edit dana masuk ${r.va}`} title="Edit" onClick={() => { setEditing(recordById(r.id)); setFormOpen(true); }}>
-                        <Pencil size={15} strokeWidth={1.75} />
-                      </button>
-                      <button type="button" className="row-icon-btn danger" disabled={r.terkunci} aria-label={`Hapus dana masuk ${r.va}`} title="Hapus" onClick={() => { setGagal(null); setHapus(r); }}>
-                        <Trash2 size={15} strokeWidth={1.75} />
-                      </button>
+                      <Tooltip content="Edit">
+                        <Button type="button" variant="ghost" size="sm" className="btn-icon" disabled={r.terkunci} aria-label={`Edit dana masuk ${r.va}`} onClick={() => { setEditing(recordById(r.id)); setFormOpen(true); }}>
+                          <Pencil size={15} strokeWidth={1.75} />
+                        </Button>
+                      </Tooltip>
+                      <Tooltip content="Hapus">
+                        <Button type="button" variant="ghost" size="sm" className="btn-icon btn-icon-danger" disabled={r.terkunci} aria-label={`Hapus dana masuk ${r.va}`} onClick={() => { setGagal(null); setHapus(r); }}>
+                          <Trash2 size={15} strokeWidth={1.75} />
+                        </Button>
+                      </Tooltip>
                     </span>
                   );
                 },

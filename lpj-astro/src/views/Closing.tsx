@@ -8,6 +8,9 @@ import { DatePicker } from "@/components/arc/date-picker/date-picker";
 import { MoneyInput } from "@/components/arc/money-input/money-input";
 import { Textarea } from "@/components/arc/textarea/textarea";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/arc/popover/popover";
+import { ScrollArea } from "@/components/arc/scroll-area/scroll-area";
+import { Tooltip } from "@/components/arc/tooltip/tooltip";
+import { InlineEdit } from "@/components/arc/inline-edit/inline-edit";
 import { PageHead } from "../components/PageHead";
 import { fmtNum, fmtRp, namaBulan, toISO } from "../format";
 import {
@@ -89,15 +92,17 @@ function VaBlock({ va }: { va: VA }) {
   return (
     <div className="closing-item">
       <div className="closing-main" data-closing-row>
-        <button
-          type="button"
-          className="row-icon-btn"
-          aria-label={`Detail ${va.nama}`}
-          aria-expanded={expanded}
-          onClick={() => setExpanded((v) => !v)}
-        >
-          {expanded ? <ChevronDown size={16} strokeWidth={1.75} /> : <ChevronRight size={16} strokeWidth={1.75} />}
-        </button>
+        <Tooltip content={`Detail ${va.nama}`}>
+          <button
+            type="button"
+            className="row-icon-btn"
+            aria-label={`Detail ${va.nama}`}
+            aria-expanded={expanded}
+            onClick={() => setExpanded((v) => !v)}
+          >
+            {expanded ? <ChevronDown size={16} strokeWidth={1.75} /> : <ChevronRight size={16} strokeWidth={1.75} />}
+          </button>
+        </Tooltip>
         <span className="closing-name">{va.nama}</span>
         <Badge size="sm" tone={badge.tone}>{badge.label}</Badge>
         <span className="closing-meta">
@@ -131,19 +136,21 @@ function VaBlock({ va }: { va: VA }) {
             <div className="va-stat"><div className="k">Total LPJ</div><div className="v num">{fmtRp(s.lpj)}</div></div>
             <div className="va-stat">
               <div className="k">Sisa di bank</div>
-              <input
-                key={`${month.key}-${va.id}-${va.sisaBank}`}
-                className="cell-input small"
-                defaultValue={fmtNum(va.sisaBank)}
-                inputMode="numeric"
-                aria-label={`Sisa saldo di bank ${va.nama}`}
-                disabled={va.closingSelesai}
-                onBlur={(e) => {
-                  const nilai = parseInt(e.target.value.replace(/\D/g, ""), 10);
-                  if (!Number.isNaN(nilai) && nilai !== va.sisaBank) setSisaBank(va.id, nilai);
-                  e.target.value = fmtNum(Number.isNaN(nilai) ? va.sisaBank : nilai);
-                }}
-              />
+              {va.closingSelesai ? (
+                <div className="v num">{fmtNum(va.sisaBank)}</div>
+              ) : (
+                <InlineEdit
+                  className="sisa-inline"
+                  variant="body"
+                  label={`Sisa saldo di bank ${va.nama}`}
+                  value={fmtNum(va.sisaBank)}
+                  validate={(next) => (/\d/.test(next) ? undefined : "Sisa di bank harus berupa angka.")}
+                  onSave={(next) => {
+                    const nilai = parseInt(next.replace(/\D/g, ""), 10);
+                    if (!Number.isNaN(nilai) && nilai !== va.sisaBank) setSisaBank(va.id, nilai);
+                  }}
+                />
+              )}
             </div>
             <div className="va-stat">
               <div className="k">Pengembalian</div>
@@ -161,37 +168,42 @@ function VaBlock({ va }: { va: VA }) {
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent
+          className="form-dialog"
           title={`Konfirmasi pengembalian ${va.nama}`}
           description={`Selisih yang harus dikembalikan ${fmtRp(s.dk)}. Sudah diterima ${fmtRp(va.pengembalian.totalDiterima)}, sisa ${fmtRp(sisaPengembalian)}.`}
         >
-          <div className="form-stack">
-            <DatePicker label="Tanggal diterima" value={tanggal} onChange={setTanggal} locale="id-ID" format={{ day: "2-digit", month: "short", year: "numeric" }} />
-            <MoneyInput
-              label="Nominal diterima"
-              currency="IDR"
-              currencies={["IDR"]}
-              locale="id-ID"
-              value={nominal}
-              onValueChange={setNominal}
-              quickAdd={[]}
-              description="Boleh sebagian. Nominal terakumulasi ke total diterima."
-            />
-            <Textarea label="Catatan (opsional)" value={catatan} onChange={(e) => setCatatan(e.target.value)} rows={2} placeholder="Catatan penerimaan pengembalian" />
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
-              <DialogClose asChild>
-                <Button variant="secondary">Batal</Button>
-              </DialogClose>
-              <Button
-                disabled={!tanggal || nominal === null || nominal <= 0}
-                onClick={() => {
-                  if (!tanggal || nominal === null) return;
-                  confirmPengembalian(va.id, { tanggal: toISO(tanggal), nominal, catatan: catatan.trim() || undefined });
-                  setDialogOpen(false);
-                }}
-              >
-                Simpan konfirmasi
-              </Button>
+          <ScrollArea className="form-scroll" label="Formulir konfirmasi pengembalian">
+            <div className="form-stack">
+              <div className="form-grid">
+                <DatePicker label="Tanggal diterima" value={tanggal} onChange={setTanggal} locale="id-ID" format={{ day: "2-digit", month: "short", year: "numeric" }} />
+                <MoneyInput
+                  label="Nominal diterima"
+                  currency="IDR"
+                  currencies={["IDR"]}
+                  locale="id-ID"
+                  value={nominal}
+                  onValueChange={setNominal}
+                  quickAdd={[]}
+                  description="Boleh sebagian. Nominal terakumulasi ke total diterima."
+                />
+              </div>
+              <Textarea label="Catatan (opsional)" value={catatan} onChange={(e) => setCatatan(e.target.value)} rows={2} placeholder="Catatan penerimaan pengembalian" />
             </div>
+          </ScrollArea>
+          <div className="form-actions" style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
+            <DialogClose asChild>
+              <Button variant="secondary">Batal</Button>
+            </DialogClose>
+            <Button
+              disabled={!tanggal || nominal === null || nominal <= 0}
+              onClick={() => {
+                if (!tanggal || nominal === null) return;
+                confirmPengembalian(va.id, { tanggal: toISO(tanggal), nominal, catatan: catatan.trim() || undefined });
+                setDialogOpen(false);
+              }}
+            >
+              Simpan konfirmasi
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

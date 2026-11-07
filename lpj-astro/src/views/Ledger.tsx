@@ -5,6 +5,7 @@ import { Select } from "@/components/arc/select/select";
 import SegmentedControl from "@/components/arc/segmented-control/segmented-control";
 import { SortableDataTable } from "@/components/arc/sortable-data-table/sortable-data-table";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/arc/popover/popover";
+import { Tooltip } from "@/components/arc/tooltip/tooltip";
 import { EmptyState } from "@/components/arc/empty-state/empty-state";
 import { PageHead } from "../components/PageHead";
 import { StatCell } from "../components/Stat";
@@ -318,12 +319,16 @@ export function Ledger({ vaId, setVaId, go, onHelp }: { vaId: string; setVaId: (
                   const e = row as unknown as Entry;
                   return (
                     <span className="row-actions">
-                      <button type="button" className="row-icon-btn" disabled={terkunci} aria-label={`Edit ${e.jenis}`} title="Edit" onClick={() => bukaEdit(e)}>
-                        <Pencil size={15} strokeWidth={1.75} />
-                      </button>
-                      <button type="button" className="row-icon-btn danger" disabled={terkunci} aria-label={`Hapus ${e.jenis}`} title="Hapus" onClick={() => { setHapusGagal(null); setHapus(e); }}>
-                        <Trash2 size={15} strokeWidth={1.75} />
-                      </button>
+                      <Tooltip content="Edit">
+                        <Button type="button" variant="ghost" size="sm" className="btn-icon" disabled={terkunci} aria-label={`Edit ${e.jenis}`} onClick={() => bukaEdit(e)}>
+                          <Pencil size={15} strokeWidth={1.75} />
+                        </Button>
+                      </Tooltip>
+                      <Tooltip content="Hapus">
+                        <Button type="button" variant="ghost" size="sm" className="btn-icon btn-icon-danger" disabled={terkunci} aria-label={`Hapus ${e.jenis}`} onClick={() => { setHapusGagal(null); setHapus(e); }}>
+                          <Trash2 size={15} strokeWidth={1.75} />
+                        </Button>
+                      </Tooltip>
                     </span>
                   );
                 },

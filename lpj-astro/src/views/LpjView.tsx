@@ -9,6 +9,9 @@ import SegmentedControl from "@/components/arc/segmented-control/segmented-contr
 import { SortableDataTable } from "@/components/arc/sortable-data-table/sortable-data-table";
 import { Badge } from "@/components/arc/badge/badge";
 import { Dialog, DialogContent, DialogClose } from "@/components/arc/dialog/dialog";
+import { Switch } from "@/components/arc/switch/switch";
+import { ScrollArea } from "@/components/arc/scroll-area/scroll-area";
+import { Tooltip } from "@/components/arc/tooltip/tooltip";
 import { Alert } from "@/components/arc/alert/alert";
 import { EmptyState } from "@/components/arc/empty-state/empty-state";
 import { PageHead } from "../components/PageHead";
@@ -99,65 +102,73 @@ export function LpjFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent title={editing ? `Edit LPJ ${noBaru ?? ""}` : "Input LPJ"} description="LPJ yang dicatat di sini adalah LPJ yang sudah disetujui.">
-        <div className="form-stack">
-          {vaTerkunci && (
-            <Alert tone="warning" title="VA ini sudah closing">
-              Catatan untuk VA yang sudah closing di bulan ini tidak bisa diubah.
-            </Alert>
-          )}
-          <Select label="Virtual account (VA)" value={vaId} onValueChange={setVaId} options={vaOptions} />
-          <DatePicker label="Tanggal LPJ" value={tanggal} onChange={setTanggal} locale="id-ID" format={{ day: "2-digit", month: "short", year: "numeric" }} />
-          <MoneyInput
-            label="Nominal LPJ"
-            currency="IDR"
-            currencies={["IDR"]}
-            locale="id-ID"
-            value={nominal}
-            onValueChange={setNominal}
-            quickAdd={[]}
-            description="Otomatis terformat dengan pemisah ribuan saat diketik."
-          />
-          <div>
-            <div className="form-label">Jenis LPJ</div>
-            <SegmentedControl
-              label="Jenis LPJ"
-              options={[
-                { value: "reguler", label: "Reguler" },
-                { value: "khusus", label: "Khusus" },
-              ]}
-              value={jenis}
-              onValueChange={(v) => setJenis(v as "reguler" | "khusus")}
+      <DialogContent className="form-dialog" title={editing ? `Edit LPJ ${noBaru ?? ""}` : "Input LPJ"} description="LPJ yang dicatat di sini adalah LPJ yang sudah disetujui.">
+        <ScrollArea className="form-scroll" label="Formulir LPJ">
+          <div className="form-stack">
+            {vaTerkunci && (
+              <Alert tone="warning" title="VA ini sudah closing">
+                Catatan untuk VA yang sudah closing di bulan ini tidak bisa diubah.
+              </Alert>
+            )}
+            <div className="form-grid">
+              <Select label="Virtual account (VA)" value={vaId} onValueChange={setVaId} options={vaOptions} />
+              <DatePicker label="Tanggal LPJ" value={tanggal} onChange={setTanggal} locale="id-ID" format={{ day: "2-digit", month: "short", year: "numeric" }} />
+            </div>
+            <MoneyInput
+              label="Nominal LPJ"
+              currency="IDR"
+              currencies={["IDR"]}
+              locale="id-ID"
+              value={nominal}
+              onValueChange={setNominal}
+              quickAdd={[]}
+              description="Otomatis terformat dengan pemisah ribuan saat diketik."
             />
+            <div className="form-grid">
+              <div>
+                <div className="form-label">Jenis LPJ</div>
+                <SegmentedControl
+                  label="Jenis LPJ"
+                  options={[
+                    { value: "reguler", label: "Reguler" },
+                    { value: "khusus", label: "Khusus" },
+                  ]}
+                  value={jenis}
+                  onValueChange={(v) => setJenis(v as "reguler" | "khusus")}
+                />
+              </div>
+              <div className="check-row" onClick={() => setClosing(!closing)}>
+                <span className="check-switch">
+                  <Switch checked={closing} onCheckedChange={setClosing} aria-label="LPJ Closing" />
+                </span>
+                <span>
+                  <span className="check-title">LPJ Closing</span>
+                  <span className="check-desc">Tandai sebagai LPJ terakhir bulan ini untuk VA ini. Maksimal satu per VA per bulan.</span>
+                </span>
+              </div>
+            </div>
+            {jenis === "khusus" && (
+              <Select
+                label="Pengisian khusus yang dipertanggungjawabkan"
+                value={khususDari}
+                onValueChange={setKhususDari}
+                placeholder="Pilih pengisian khusus"
+                options={khususOptions}
+              />
+            )}
+            {jenis === "khusus" && khususOptions.length === 0 && (
+              <p className="footnote">VA ini belum punya pengisian khusus yang bebas. Catat pengisian khususnya dulu di halaman Dana Masuk.</p>
+            )}
+            <Textarea label="Keterangan" value={keterangan} onChange={(e) => setKeterangan(e.target.value)} rows={3} placeholder="Keterangan LPJ" />
           </div>
-          {jenis === "khusus" && (
-            <Select
-              label="Pengisian khusus yang dipertanggungjawabkan"
-              value={khususDari}
-              onValueChange={setKhususDari}
-              placeholder="Pilih pengisian khusus"
-              options={khususOptions}
-            />
-          )}
-          {jenis === "khusus" && khususOptions.length === 0 && (
-            <p className="footnote">VA ini belum punya pengisian khusus yang bebas. Catat pengisian khususnya dulu di halaman Dana Masuk.</p>
-          )}
-          <label className="check-row">
-            <input type="checkbox" checked={closing} onChange={(e) => setClosing(e.target.checked)} />
-            <span>
-              <span className="check-title">LPJ Closing</span>
-              <span className="check-desc">Tandai sebagai LPJ terakhir bulan ini untuk VA ini. Maksimal satu per VA per bulan.</span>
-            </span>
-          </label>
-          <Textarea label="Keterangan" value={keterangan} onChange={(e) => setKeterangan(e.target.value)} rows={3} placeholder="Keterangan LPJ" />
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
-            <DialogClose asChild>
-              <Button variant="secondary">Batal</Button>
-            </DialogClose>
-            <Button disabled={!valid} onClick={simpan}>
-              {editing ? "Simpan perubahan" : "Simpan LPJ"}
-            </Button>
-          </div>
+        </ScrollArea>
+        <div className="form-actions" style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
+          <DialogClose asChild>
+            <Button variant="secondary">Batal</Button>
+          </DialogClose>
+          <Button disabled={!valid} onClick={simpan}>
+            {editing ? "Simpan perubahan" : "Simpan LPJ"}
+          </Button>
         </div>
       </DialogContent>
     </Dialog>
@@ -354,12 +365,16 @@ export function LpjView({ onHelp }: { onHelp: () => void }) {
                   const r = row as unknown as Row;
                   return (
                     <span className="row-actions">
-                      <button type="button" className="row-icon-btn" disabled={r.terkunci} aria-label={`Edit ${r.no}`} title="Edit" onClick={() => { setEditing(recordById(r.id)); setFormOpen(true); }}>
-                        <Pencil size={15} strokeWidth={1.75} />
-                      </button>
-                      <button type="button" className="row-icon-btn danger" disabled={r.terkunci} aria-label={`Hapus ${r.no}`} title="Hapus" onClick={() => setHapus(r)}>
-                        <Trash2 size={15} strokeWidth={1.75} />
-                      </button>
+                      <Tooltip content="Edit">
+                        <Button type="button" variant="ghost" size="sm" className="btn-icon" disabled={r.terkunci} aria-label={`Edit ${r.no}`} onClick={() => { setEditing(recordById(r.id)); setFormOpen(true); }}>
+                          <Pencil size={15} strokeWidth={1.75} />
+                        </Button>
+                      </Tooltip>
+                      <Tooltip content="Hapus">
+                        <Button type="button" variant="ghost" size="sm" className="btn-icon btn-icon-danger" disabled={r.terkunci} aria-label={`Hapus ${r.no}`} onClick={() => setHapus(r)}>
+                          <Trash2 size={15} strokeWidth={1.75} />
+                        </Button>
+                      </Tooltip>
                     </span>
                   );
                 },

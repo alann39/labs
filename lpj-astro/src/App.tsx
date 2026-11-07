@@ -3,6 +3,7 @@ import "./index.css";
 import { StrictMode, useEffect, useState } from "react";
 import { BookOpen, CircleDollarSign, FileText, Flag, LayoutDashboard, LogOut, Moon, PanelLeftClose, PanelLeftOpen, Settings2, Sun } from "lucide-react";
 import { Button } from "@/components/arc/button/button";
+import { Tooltip } from "@/components/arc/tooltip/tooltip";
 import { Dialog, DialogContent, DialogClose } from "@/components/arc/dialog/dialog";
 import { StoreProvider, useStore } from "./store";
 import { AUTH_KEY, LoginGate } from "./components/LoginGate";
@@ -86,6 +87,22 @@ function Shell() {
     });
   };
 
+  // Perpindahan tema terasa halus (efek yang dibawa ThemeSwitch Arc,
+  // tanpa pill-nya): kelas sesaat `theme-fade` di <html> menghidupkan
+  // transisi warna permukaan selama data-theme berganti; ikon
+  // matahari/bulan ber-crossfade + rotasi lewat CSS .theme-icon.
+  // Reduced motion: kelas tidak dipasang, pergantian tetap instan.
+  const toggleDark = () => {
+    const el = document.documentElement;
+    let reduce = false;
+    try { reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch { /* abaikan */ }
+    if (!reduce) {
+      el.classList.add("theme-fade");
+      window.setTimeout(() => el.classList.remove("theme-fade"), 320);
+    }
+    setDark((d) => !d);
+  };
+
   const jumlahClosing = month.vas.filter((va) => va.closingSelesai).length;
   const help = HELP[view];
   const openHelp = () => setHelpOpen(true);
@@ -104,32 +121,43 @@ function Shell() {
             <div className="brand-name">LPJ kas kecil</div>
             <div className="brand-sub">Rekap per VA</div>
           </div>
-          <button
-            type="button"
-            className="icon-btn sidebar-toggle"
-            onClick={toggleCollapsed}
-            aria-label={collapsed ? "Luaskan sidebar" : "Ciutkan sidebar"}
-            aria-expanded={!collapsed}
-            title={collapsed ? "Luaskan sidebar" : "Ciutkan sidebar"}
-          >
-            {collapsed ? <PanelLeftOpen size={18} strokeWidth={1.75} /> : <PanelLeftClose size={18} strokeWidth={1.75} />}
-          </button>
+          <Tooltip content={collapsed ? "Luaskan sidebar" : "Ciutkan sidebar"} side="bottom">
+            <button
+              type="button"
+              className="icon-btn sidebar-toggle"
+              onClick={toggleCollapsed}
+              aria-label={collapsed ? "Luaskan sidebar" : "Ciutkan sidebar"}
+              aria-expanded={!collapsed}
+            >
+              {collapsed ? <PanelLeftOpen size={18} strokeWidth={1.75} /> : <PanelLeftClose size={18} strokeWidth={1.75} />}
+            </button>
+          </Tooltip>
         </div>
         <nav aria-label="Navigasi utama">
-          {NAV.map((item) => (
-            <button
-              key={item.key}
-              type="button"
-              className={`nav-item${view === item.key ? " active" : ""}`}
-              onClick={() => setView(item.key)}
-              aria-current={view === item.key ? "page" : undefined}
-              aria-label={item.label}
-              title={item.label}
-            >
-              <item.icon size={20} strokeWidth={1.75} />
-              <span className="nav-label">{item.label}</span>
-            </button>
-          ))}
+          {NAV.map((item) => {
+            const button = (
+              <button
+                key={item.key}
+                type="button"
+                className={`nav-item${view === item.key ? " active" : ""}`}
+                onClick={() => setView(item.key)}
+                aria-current={view === item.key ? "page" : undefined}
+                aria-label={item.label}
+              >
+                <item.icon size={20} strokeWidth={1.75} />
+                <span className="nav-label">{item.label}</span>
+              </button>
+            );
+            // Saat collapsed label teks tersembunyi: penjelasan pindah ke
+            // Tooltip Arc (dulu atribut title). Expanded: tanpa tooltip.
+            return collapsed ? (
+              <Tooltip key={item.key} content={item.label} side="right">
+                {button}
+              </Tooltip>
+            ) : (
+              button
+            );
+          })}
         </nav>
         <div className="sidebar-foot">
           <div className="period-card">
@@ -137,14 +165,38 @@ function Shell() {
             <div className="v">{namaBulan(month.key)}</div>
             <div className="s">{jumlahClosing} dari {month.vas.length} VA sudah closing</div>
           </div>
-          <button type="button" className="nav-item" onClick={() => setDark((d) => !d)} aria-label="Ganti mode terang gelap" title={dark ? "Mode terang" : "Mode gelap"}>
-            {dark ? <Sun size={20} strokeWidth={1.75} /> : <Moon size={20} strokeWidth={1.75} />}
-            <span className="nav-label">{dark ? "Mode terang" : "Mode gelap"}</span>
-          </button>
-          <button type="button" className="nav-item" onClick={logout} aria-label="Keluar dari aplikasi" title="Keluar">
-            <LogOut size={20} strokeWidth={1.75} />
-            <span className="nav-label">Keluar</span>
-          </button>
+          {collapsed ? (
+            <Tooltip content={dark ? "Mode terang" : "Mode gelap"} side="right">
+              <button type="button" className="nav-item" onClick={toggleDark} aria-label="Ganti mode terang gelap">
+                <span className="theme-icon" aria-hidden="true">
+                  <Moon className="theme-icon-moon" size={20} strokeWidth={1.75} />
+                  <Sun className="theme-icon-sun" size={20} strokeWidth={1.75} />
+                </span>
+                <span className="nav-label">{dark ? "Mode terang" : "Mode gelap"}</span>
+              </button>
+            </Tooltip>
+          ) : (
+            <button type="button" className="nav-item" onClick={toggleDark} aria-label="Ganti mode terang gelap">
+              <span className="theme-icon" aria-hidden="true">
+                <Moon className="theme-icon-moon" size={20} strokeWidth={1.75} />
+                <Sun className="theme-icon-sun" size={20} strokeWidth={1.75} />
+              </span>
+              <span className="nav-label">{dark ? "Mode terang" : "Mode gelap"}</span>
+            </button>
+          )}
+          {collapsed ? (
+            <Tooltip content="Keluar" side="right">
+              <button type="button" className="nav-item" onClick={logout} aria-label="Keluar dari aplikasi">
+                <LogOut size={20} strokeWidth={1.75} />
+                <span className="nav-label">Keluar</span>
+              </button>
+            </Tooltip>
+          ) : (
+            <button type="button" className="nav-item" onClick={logout} aria-label="Keluar dari aplikasi">
+              <LogOut size={20} strokeWidth={1.75} />
+              <span className="nav-label">Keluar</span>
+            </button>
+          )}
           {(syncState === "saving" || (syncState === "idle" && hasSaved)) && (
             <div className="sync-status" role="status">
               <span className="sync-dot" aria-hidden="true" />

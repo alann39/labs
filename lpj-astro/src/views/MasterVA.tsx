@@ -4,6 +4,8 @@ import { Button } from "@/components/arc/button/button";
 import { SortableDataTable } from "@/components/arc/sortable-data-table/sortable-data-table";
 import { Badge } from "@/components/arc/badge/badge";
 import { Dialog, DialogContent, DialogClose } from "@/components/arc/dialog/dialog";
+import { ScrollArea } from "@/components/arc/scroll-area/scroll-area";
+import { Tooltip } from "@/components/arc/tooltip/tooltip";
 import { Input } from "@/components/arc/input/input";
 import { MoneyInput } from "@/components/arc/money-input/money-input";
 import { PageHead } from "../components/PageHead";
@@ -80,15 +82,21 @@ export function MasterVA({ onHelp }: { onHelp: () => void }) {
                 const mv = state.masterVa.find((x) => x.id === r.id) ?? null;
                 return (
                   <span className="row-actions">
-                    <button type="button" className="row-icon-btn" aria-label={`Edit ${r.nama}`} title="Edit" onClick={() => { setEditing(mv); setFormOpen(true); }}>
-                      <Pencil size={15} strokeWidth={1.75} />
-                    </button>
-                    <button type="button" className="row-icon-btn" aria-label={r.aktif ? `Nonaktifkan ${r.nama}` : `Aktifkan ${r.nama}`} title={r.aktif ? "Nonaktifkan" : "Aktifkan"} onClick={() => setMasterVaAktif(r.id, !r.aktif)}>
-                      <Power size={15} strokeWidth={1.75} />
-                    </button>
-                    <button type="button" className="row-icon-btn danger" disabled={r.punyaCatatan} aria-label={`Hapus ${r.nama}`} title={r.punyaCatatan ? "VA punya catatan, tidak bisa dihapus" : "Hapus"} onClick={() => setHapus(r)}>
-                      <Trash2 size={15} strokeWidth={1.75} />
-                    </button>
+                    <Tooltip content="Edit">
+                      <Button type="button" variant="ghost" size="sm" className="btn-icon" aria-label={`Edit ${r.nama}`} onClick={() => { setEditing(mv); setFormOpen(true); }}>
+                        <Pencil size={15} strokeWidth={1.75} />
+                      </Button>
+                    </Tooltip>
+                    <Tooltip content={r.aktif ? "Nonaktifkan" : "Aktifkan"}>
+                      <Button type="button" variant="ghost" size="sm" className="btn-icon" aria-label={r.aktif ? `Nonaktifkan ${r.nama}` : `Aktifkan ${r.nama}`} onClick={() => setMasterVaAktif(r.id, !r.aktif)}>
+                        <Power size={15} strokeWidth={1.75} />
+                      </Button>
+                    </Tooltip>
+                    <Tooltip content={r.punyaCatatan ? "VA punya catatan, tidak bisa dihapus" : "Hapus"}>
+                      <Button type="button" variant="ghost" size="sm" className="btn-icon btn-icon-danger" disabled={r.punyaCatatan} aria-label={`Hapus ${r.nama}`} onClick={() => setHapus(r)}>
+                        <Trash2 size={15} strokeWidth={1.75} />
+                      </Button>
+                    </Tooltip>
                   </span>
                 );
               },
@@ -109,28 +117,32 @@ export function MasterVA({ onHelp }: { onHelp: () => void }) {
       </section>
 
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
-        <DialogContent title={editing ? `Edit VA ${editing.nama}` : "Tambah VA"} description="Perubahan berlaku ke bulan-bulan di mana VA ini belum closing.">
-          <div className="form-stack">
-            <Input label="Nama VA / departemen" value={nama} onChange={(e) => setNama(e.target.value)} />
-            <Input label="No. VA" value={nomor} onChange={(e) => setNomor(e.target.value)} />
-            <Input label="Grup" value={grup} onChange={(e) => setGrup(e.target.value)} placeholder="Konstruksi" />
-            <MoneyInput
-              label="Saldo normal"
-              currency="IDR"
-              currencies={["IDR"]}
-              locale="id-ID"
-              value={saldo}
-              onValueChange={setSaldo}
-              quickAdd={[]}
-            />
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
-              <DialogClose asChild>
-                <Button variant="secondary">Batal</Button>
-              </DialogClose>
-              <Button disabled={!formValid} onClick={simpan}>
-                {editing ? "Simpan perubahan" : "Tambah VA"}
-              </Button>
+        <DialogContent className="form-dialog" title={editing ? `Edit VA ${editing.nama}` : "Tambah VA"} description="Perubahan berlaku ke bulan-bulan di mana VA ini belum closing.">
+          <ScrollArea className="form-scroll" label="Formulir master VA">
+            <div className="form-stack">
+              <div className="form-grid">
+                <Input label="Nama VA / departemen" value={nama} onChange={(e) => setNama(e.target.value)} />
+                <Input label="No. VA" value={nomor} onChange={(e) => setNomor(e.target.value)} />
+              </div>
+              <Input label="Grup" value={grup} onChange={(e) => setGrup(e.target.value)} placeholder="Konstruksi" />
+              <MoneyInput
+                label="Saldo normal"
+                currency="IDR"
+                currencies={["IDR"]}
+                locale="id-ID"
+                value={saldo}
+                onValueChange={setSaldo}
+                quickAdd={[]}
+              />
             </div>
+          </ScrollArea>
+          <div className="form-actions" style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
+            <DialogClose asChild>
+              <Button variant="secondary">Batal</Button>
+            </DialogClose>
+            <Button disabled={!formValid} onClick={simpan}>
+              {editing ? "Simpan perubahan" : "Tambah VA"}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
