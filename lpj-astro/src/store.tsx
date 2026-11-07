@@ -1,39 +1,43 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { addDays, namaBulan, nextMonthKey } from "./format";
+import { namaBulan, nextMonthKey } from "./format";
 import { seed } from "./seed";
 
-/* ================= Model =================
-   Satu-satunya jalan dana masuk (selain isi ulang awal bulan dari closing)
-   adalah tahap "pengisian kembali" di dalam Proses LPJ. Karena itu dana
-   masuk selalu tertaut ke LPJ yang dimaksud. */
+/* ================= Model (kontrak revisi 2026-11-07) =================
+   Tidak ada tahap proses lagi. Satu bulan berisi snapshot VA plus dua
+   daftar catatan: LPJ yang sudah disetujui dan DanaMasuk yang sudah
+   ditransfer. Dana masuk selalu catatan eksplisit: "awal" (isi saldo
+   normal penuh dari closing), "kembali" (pengisian kembali tertaut ke
+   satu LPJ reguler), atau "khusus" (pengisian atas permintaan khusus,
+   dipertanggungjawabkan oleh satu LPJ khusus). */
 
-export type Stage = "pengajuan" | "pemeriksaan" | "disetujui" | "pengisian" | "selesai";
-export const STAGE_ORDER: Stage[] = ["pengajuan", "pemeriksaan", "disetujui", "pengisian", "selesai"];
-export const STAGE_LABEL: Record<Stage, string> = {
-  pengajuan: "Pengajuan dibuat",
-  pemeriksaan: "Pemeriksaan dan persetujuan",
-  disetujui: "Disetujui, menunggu pengisian",
-  pengisian: "Pengisian kembali",
-  selesai: "Selesai",
-};
-/** Aksi untuk maju dari stage saat ini */
-export const STAGE_ACTION: Partial<Record<Stage, string>> = {
-  pengajuan: "Periksa",
-  pemeriksaan: "Setujui",
-  disetujui: "Isi kembali",
-  pengisian: "Selesaikan",
-};
-
-export interface Proses {
+export interface LpjRecord {
   id: string;
   no: string;
   vaId: string;
-  tanggal: string; // ISO yyyy-mm-dd (pengajuan)
+  tanggal: string; // ISO yyyy-mm-dd
   nominal: number;
   keterangan: string;
-  stage: Stage;
-  tanggalIsi?: string; // terisi saat masuk tahap pengisian
-  lampiran?: string[];
+  jenis: "reguler" | "khusus";
+  khususDariMasukId?: string; // wajib untuk jenis khusus
+  lpjClosing: boolean; // tanda "LPJ Closing" (LPJ terakhir bulan itu)
+}
+
+export interface DanaMasukRecord {
+  id: string;
+  vaId: string;
+  tanggal: string; // ISO yyyy-mm-dd
+  nominal: number;
+  jenis: "awal" | "kembali" | "khusus";
+  lpjId?: string; // untuk "kembali": LPJ reguler yang diisi kembali
+  keterangan?: string;
+  referensiNama?: string; // nama file referensi (opsional, khusus)
+}
+
+export interface Pengembalian {
+  status: "belum" | "sebagian" | "diterima" | "tidak-perlu";
+  totalDiterima: number;
+  tanggal?: string;
+  catatan?: string;
 }
 
 export interface VA {
@@ -44,74 +48,168 @@ export interface VA {
   saldoNormal: number;
   sisaBank: number;
   sisaDiinput: boolean;
-  konfirmasiClosing: boolean; // VA tanpa proses yang sudah dikonfirmasi closing manual
+  pengembalian: Pengembalian;
+  closingSelesai: boolean;
 }
 
 export interface MonthData {
   key: string; // "2026-10"
   vas: VA[];
-  proses: Proses[];
-  ditutup: boolean;
+  lpj: LpjRecord[];
+  masuk: DanaMasukRecord[];
+}
+
+export interface MasterVa {
+  id: string;
+  nama: string;
+  nomor: string;
+  grup: string;
+  saldoNormal: number;
+  aktif: boolean;
 }
 
 export interface AppState {
   months: MonthData[];
   activeMonth: string;
+  masterVa: MasterVa[];
 }
 
-/* ================= Seed =================
-   Seed Oktober 2026 tinggal di ./seed (dipakai bersama oleh API server
-   untuk men-seed database dan oleh store sebagai placeholder lokal). */
+/** ditutup adalah turunan: semua VA sudah closing. */
+export const monthDitutup = (m: MonthData): boolean =>
+  m.vas.length > 0 && m.vas.every((v) => v.closingSelesai);
 
 /* ================= Hitungan ================= */
 
 export interface VaStats {
-  lpj: number;       // total LPJ disetujui (stage >= disetujui)
-  isiKembali: number;
-  masuk: number;     // saldo normal (isi ulang awal) + isi kembali
-  dk: number;        // dana dikembalikan
-  pending: number;   // proses yang belum selesai alurnya
+  lpj: number;
+  lpjReguler: number;
+  lpjKhusus: number;
+  masuk: number;
+  masukAwal: number;
+  masukKembali: number;
+  masukKhusus: number;
+  dk: number; // selisih / dana dikembalikan
 }
 
 export function vaStats(m: MonthData, va: VA): VaStats {
-  let lpj = 0, isi = 0, pending = 0;
-  for (const p of m.proses) {
-    if (p.vaId !== va.id) continue;
-    if (p.stage === "disetujui" || p.stage === "pengisian" || p.stage === "selesai") lpj += p.nominal;
-    if (p.stage === "pengisian" || p.stage === "selesai") isi += p.nominal;
-    if (p.stage !== "selesai") pending += 1;
+  let lpjReguler = 0, lpjKhusus = 0, awal = 0, kembali = 0, khusus = 0;
+  for (const r of m.lpj) {
+    if (r.vaId !== va.id) continue;
+    if (r.jenis === "khusus") lpjKhusus += r.nominal; else lpjReguler += r.nominal;
   }
-  const masuk = va.saldoNormal + isi;
-  return { lpj, isiKembali: isi, masuk, dk: masuk - lpj - va.sisaBank, pending };
+  for (const r of m.masuk) {
+    if (r.vaId !== va.id) continue;
+    if (r.jenis === "awal") awal += r.nominal;
+    else if (r.jenis === "kembali") kembali += r.nominal;
+    else khusus += r.nominal;
+  }
+  const masuk = awal + kembali + khusus;
+  const lpj = lpjReguler + lpjKhusus;
+  return {
+    lpj, lpjReguler, lpjKhusus, masuk,
+    masukAwal: awal, masukKembali: kembali, masukKhusus: khusus,
+    dk: masuk - lpj - va.sisaBank,
+  };
 }
 
-export type VaStatus = "closing" | "proses" | "kurang";
+/** Status pengembalian efektif: dk <= 0 tidak perlu pengembalian. */
+export function statusPengembalian(m: MonthData, va: VA): Pengembalian["status"] {
+  const { dk } = vaStats(m, va);
+  if (dk <= 0) return "tidak-perlu";
+  if (va.pengembalian.status === "diterima" && va.pengembalian.totalDiterima >= dk) return "diterima";
+  if (va.pengembalian.totalDiterima > 0) return "sebagian";
+  return "belum";
+}
+
+export type VaStatus = "closing" | "kurang" | "menunggu" | "sebagian" | "siap";
+export const VA_STATUS_BADGE: Record<VaStatus, { tone: "success" | "danger" | "warning" | "info" | "neutral"; label: string }> = {
+  closing: { tone: "success", label: "Sudah closing" },
+  kurang: { tone: "danger", label: "Kelebihan LPJ" },
+  menunggu: { tone: "warning", label: "Menunggu pengembalian" },
+  sebagian: { tone: "warning", label: "Diterima sebagian" },
+  siap: { tone: "info", label: "Siap closing" },
+};
+
+/** Satu badge paling relevan untuk VA ini (aturan di spec revisi). */
 export function vaStatus(m: MonthData, va: VA): VaStatus {
+  if (va.closingSelesai) return "closing";
   const s = vaStats(m, va);
   if (s.dk < 0) return "kurang";
-  if (m.ditutup) return "closing";
-  const siap = va.sisaDiinput && s.pending === 0 && (m.proses.some((p) => p.vaId === va.id) || va.konfirmasiClosing);
-  return siap ? "closing" : "proses";
+  if (s.dk > 0) {
+    const p = statusPengembalian(m, va);
+    if (p === "belum") return "menunggu";
+    if (p === "sebagian") return "sebagian";
+  }
+  return "siap";
 }
 
+export const PENGEMBALIAN_LABEL: Record<Pengembalian["status"], string> = {
+  belum: "Belum diterima",
+  sebagian: "Diterima sebagian",
+  diterima: "Sudah diterima",
+  "tidak-perlu": "Tidak perlu pengembalian",
+};
+
+export const MASUK_JENIS_LABEL: Record<DanaMasukRecord["jenis"], string> = {
+  awal: "Isi awal",
+  kembali: "Pengisian kembali",
+  khusus: "Pengisian khusus",
+};
+
+/** LPJ reguler sudah diisi kembali bila ada DanaMasuk kembali tertaut. */
+export const lpjSudahDiisi = (m: MonthData, lpjId: string): boolean =>
+  m.masuk.some((r) => r.jenis === "kembali" && r.lpjId === lpjId);
+
+/** Pengisian khusus sudah dipertanggungjawabkan oleh LPJ khusus. */
+export const khususSudahAdaLpj = (m: MonthData, masukId: string): boolean =>
+  m.lpj.some((r) => r.jenis === "khusus" && r.khususDariMasukId === masukId);
+
 export interface Totals {
-  normal: number; masuk: number; lpj: number; sisa: number; dkPositif: number; vaKurang: VA[];
+  normal: number; masuk: number; lpj: number; sisa: number; dkPositif: number;
+  lpjReguler: number; lpjKhusus: number;
+  masukAwal: number; masukKembali: number; masukKhusus: number;
+  diterima: number; belumDiterima: number; vaKurang: VA[];
 }
 export function monthTotals(m: MonthData): Totals {
   let normal = 0, masuk = 0, lpj = 0, sisa = 0, dkPositif = 0;
+  let lpjReguler = 0, lpjKhusus = 0, masukAwal = 0, masukKembali = 0, masukKhusus = 0;
+  let diterima = 0, belumDiterima = 0;
   const vaKurang: VA[] = [];
   for (const va of m.vas) {
     const s = vaStats(m, va);
     normal += va.saldoNormal; masuk += s.masuk; lpj += s.lpj; sisa += va.sisaBank;
-    if (s.dk > 0) dkPositif += s.dk;
+    lpjReguler += s.lpjReguler; lpjKhusus += s.lpjKhusus;
+    masukAwal += s.masukAwal; masukKembali += s.masukKembali; masukKhusus += s.masukKhusus;
+    if (s.dk > 0) {
+      dkPositif += s.dk;
+      const p = statusPengembalian(m, va);
+      if (p === "diterima") diterima += s.dk;
+      else {
+        diterima += Math.min(va.pengembalian.totalDiterima, s.dk);
+        belumDiterima += s.dk - Math.min(va.pengembalian.totalDiterima, s.dk);
+      }
+    }
     if (s.dk < 0) vaKurang.push(va);
   }
-  return { normal, masuk, lpj, sisa, dkPositif, vaKurang };
+  return {
+    normal, masuk, lpj, sisa, dkPositif, lpjReguler, lpjKhusus,
+    masukAwal, masukKembali, masukKhusus, diterima, belumDiterima, vaKurang,
+  };
 }
 
 /* ================= Store ================= */
 
 export type SyncState = "idle" | "saving" | "error";
+
+export interface LpjInput {
+  vaId: string; tanggal: string; nominal: number; keterangan: string;
+  jenis: "reguler" | "khusus"; khususDariMasukId?: string; lpjClosing: boolean;
+}
+export interface MasukInput {
+  vaId: string; tanggal: string; nominal: number;
+  jenis: "awal" | "kembali" | "khusus"; lpjId?: string;
+  keterangan?: string; referensiNama?: string;
+}
 
 interface Store {
   state: AppState;
@@ -121,12 +219,21 @@ interface Store {
   syncState: SyncState;
   hasSaved: boolean;
   setActiveMonth: (key: string) => void;
-  addProses: (p: Omit<Proses, "id" | "no" | "stage">) => Proses;
-  advanceProses: (prosesId: string) => void;
-  setSisaBank: (vaId: string, nilai: number) => void;
-  tutupBulan: () => void;
-  reset: () => void;
   nextNo: () => string;
+  addLpj: (p: LpjInput) => LpjRecord;
+  updateLpj: (id: string, p: LpjInput) => void;
+  deleteLpj: (id: string) => void;
+  addMasuk: (p: MasukInput) => DanaMasukRecord;
+  updateMasuk: (id: string, p: MasukInput) => void;
+  deleteMasuk: (id: string) => boolean; // false bila khusus yang sudah punya LPJ khusus
+  setSisaBank: (vaId: string, nilai: number) => void;
+  confirmPengembalian: (vaId: string, data: { tanggal: string; nominal: number; catatan?: string }) => void;
+  closingVa: (vaId: string) => void;
+  addMasterVa: (p: Omit<MasterVa, "id" | "aktif">) => MasterVa;
+  updateMasterVa: (id: string, p: Omit<MasterVa, "id" | "aktif">) => void;
+  setMasterVaAktif: (id: string, aktif: boolean) => void;
+  deleteMasterVa: (id: string) => boolean; // false bila VA punya catatan
+  reset: () => void;
 }
 
 const Ctx = createContext<Store | null>(null);
@@ -147,7 +254,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const versionsRef = useRef<Record<string, number>>({});
   const syncedRef = useRef<Map<string, MonthData>>(new Map());
   const syncedActiveRef = useRef<string | null>(null);
+  const syncedMasterRef = useRef<string | null>(null);
   const loadedRef = useRef(false);
+  const idRef = useRef(0);
   // Cermin state terbaru untuk runner sinkronisasi: diff selalu dihitung
   // dari state saat run mulai, bukan snapshot saat timer dijadwalkan.
   const stateRef = useRef(state);
@@ -162,6 +271,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   // syncMonth).
   const hasBaselineRef = useRef(false);
 
+  const newId = (prefix: string) => {
+    idRef.current += 1;
+    return `${prefix}${Date.now().toString(36)}${idRef.current}`;
+  };
+
   const adoptServerState = (payload: StatePayload) => {
     // Mengadopsi payload berarti app sudah melihat state server asli —
     // catat sebagai baseline sesi ini.
@@ -169,7 +283,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     versionsRef.current = payload.versions ?? {};
     syncedRef.current = new Map(payload.months.map((m) => [m.key, m]));
     syncedActiveRef.current = payload.activeMonth;
-    setState({ months: payload.months, activeMonth: payload.activeMonth });
+    const masterVa = payload.masterVa ?? stateRef.current.masterVa;
+    syncedMasterRef.current = JSON.stringify(masterVa);
+    setState({ months: payload.months, activeMonth: payload.activeMonth, masterVa });
   };
 
   // Muat awal dari server; gagal -> tetap di seed lokal + mode offline.
@@ -322,7 +438,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const changed = latest.months.filter((m) => syncedRef.current.get(m.key) !== m);
         const activeChanged =
           syncedActiveRef.current !== null && syncedActiveRef.current !== latest.activeMonth;
-        if (changed.length === 0 && !activeChanged) break;
+        const masterChanged =
+          syncedMasterRef.current !== null && syncedMasterRef.current !== JSON.stringify(latest.masterVa);
+        if (changed.length === 0 && !activeChanged && !masterChanged) break;
         try {
           for (const m of changed) {
             await syncMonth(m);
@@ -335,6 +453,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             });
             if (!res.ok) throw new Error("sync-gagal");
             syncedActiveRef.current = latest.activeMonth;
+          }
+          if (masterChanged) {
+            const res = await fetch("/api/master-va", {
+              method: "PUT",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ masterVa: latest.masterVa }),
+            });
+            if (!res.ok) throw new Error("sync-gagal");
+            syncedMasterRef.current = JSON.stringify(latest.masterVa);
           }
         } catch (err) {
           if (err instanceof Error && err.message === "no-baseline") {
@@ -384,7 +511,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (!loadedRef.current || loading) return;
     const dirty =
       state.months.some((m) => syncedRef.current.get(m.key) !== m) ||
-      (syncedActiveRef.current !== null && syncedActiveRef.current !== state.activeMonth);
+      (syncedActiveRef.current !== null && syncedActiveRef.current !== state.activeMonth) ||
+      (syncedMasterRef.current !== null && syncedMasterRef.current !== JSON.stringify(state.masterVa));
     if (!dirty) return;
     const timer = setTimeout(() => {
       void runSync();
@@ -410,40 +538,173 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     hasSaved,
     setActiveMonth: (key) => setState((s) => ({ ...s, activeMonth: key })),
     nextNo: () => {
-      const nums = month.proses.map((p) => parseInt(p.no.replace(/\D/g, "").slice(-4), 10)).filter((n) => !Number.isNaN(n));
-      const next = (nums.length ? Math.max(...nums) : 1029) + 1;
-      return `LPJ-${month.key.slice(0, 4)}-${next}`;
+      const nums = month.lpj
+        .map((p) => parseInt(p.no.replace(/\D/g, "").slice(-4), 10))
+        .filter((n) => !Number.isNaN(n));
+      const base = nums.length ? Math.max(...nums) : parseInt(month.key.slice(5, 7), 10) * 100;
+      return `LPJ-${month.key.slice(0, 4)}-${String(base + 1).padStart(4, "0")}`;
     },
-    addProses: (p) => {
-      const full: Proses = { ...p, id: `u${Date.now()}`, no: store.nextNo(), stage: "pengajuan" };
-      patchMonth((m) => ({ ...m, proses: [...m.proses, full] }));
-      return full;
-    },
-    advanceProses: (prosesId) =>
+    addLpj: (p) => {
+      const full: LpjRecord = { ...p, id: newId("l"), no: store.nextNo() };
       patchMonth((m) => ({
         ...m,
-        proses: m.proses.map((p) => {
-          if (p.id !== prosesId) return p;
-          const idx = STAGE_ORDER.indexOf(p.stage);
-          if (idx >= STAGE_ORDER.length - 1) return p;
-          const stage = STAGE_ORDER[idx + 1];
-          return { ...p, stage, tanggalIsi: stage === "pengisian" ? addDays(p.tanggal, 2) : p.tanggalIsi };
+        lpj: [
+          ...m.lpj.map((r) => (full.lpjClosing && r.vaId === full.vaId ? { ...r, lpjClosing: false } : r)),
+          full,
+        ],
+      }));
+      return full;
+    },
+    updateLpj: (id, p) =>
+      patchMonth((m) => ({
+        ...m,
+        lpj: m.lpj.map((r) => {
+          if (r.id === id) return { ...r, ...p };
+          if (p.lpjClosing && r.vaId === p.vaId) return { ...r, lpjClosing: false };
+          return r;
         }),
       })),
+    deleteLpj: (id) =>
+      patchMonth((m) => ({
+        ...m,
+        lpj: m.lpj.filter((r) => r.id !== id),
+        // Lepaskan tautan pengisian kembali yang menunjuk LPJ ini.
+        masuk: m.masuk.map((r) =>
+          r.lpjId === id
+            ? { ...r, lpjId: undefined, keterangan: r.keterangan?.startsWith("Pengisian kembali LPJ-") ? undefined : r.keterangan }
+            : r,
+        ),
+      })),
+    addMasuk: (p) => {
+      const full: DanaMasukRecord = { ...p, id: newId("m") };
+      patchMonth((m) => ({ ...m, masuk: [...m.masuk, full] }));
+      return full;
+    },
+    updateMasuk: (id, p) =>
+      patchMonth((m) => ({ ...m, masuk: m.masuk.map((r) => (r.id === id ? { ...r, ...p } : r)) })),
+    deleteMasuk: (id) => {
+      const target = month.masuk.find((r) => r.id === id);
+      if (!target) return false;
+      // DanaMasuk khusus yang sudah punya LPJ khusus tidak boleh dihapus.
+      if (target.jenis === "khusus" && khususSudahAdaLpj(month, id)) return false;
+      patchMonth((m) => ({ ...m, masuk: m.masuk.filter((r) => r.id !== id) }));
+      return true;
+    },
     setSisaBank: (vaId, nilai) =>
       patchMonth((m) => ({ ...m, vas: m.vas.map((v) => (v.id === vaId ? { ...v, sisaBank: nilai, sisaDiinput: true } : v)) })),
-    tutupBulan: () => {
-      const nk = nextMonthKey(month.key);
-      const fresh: MonthData = {
-        key: nk,
-        vas: month.vas.map((v) => ({ ...v, sisaBank: 0, sisaDiinput: false, konfirmasiClosing: false })),
-        proses: [],
-        ditutup: false,
-      };
+    confirmPengembalian: (vaId, data) =>
+      patchMonth((m) => ({
+        ...m,
+        vas: m.vas.map((v) => {
+          if (v.id !== vaId) return v;
+          const totalDiterima = v.pengembalian.totalDiterima + data.nominal;
+          const dk = vaStats(m, v).dk;
+          return {
+            ...v,
+            pengembalian: {
+              status: totalDiterima >= dk ? "diterima" : "sebagian",
+              totalDiterima,
+              tanggal: data.tanggal,
+              catatan: data.catatan ?? v.pengembalian.catatan,
+            },
+          };
+        }),
+      })),
+    closingVa: (vaId) =>
+      setState((s) => {
+        const cur = s.months.find((m) => m.key === s.activeMonth);
+        const va = cur?.vas.find((v) => v.id === vaId);
+        if (!cur || !va || va.closingSelesai) return s;
+        const nk = nextMonthKey(cur.key);
+        let months = s.months.map((m) =>
+          m.key === cur.key
+            ? { ...m, vas: m.vas.map((v) => (v.id === vaId ? { ...v, closingSelesai: true } : v)) }
+            : m,
+        );
+        if (!months.some((m) => m.key === nk)) {
+          const fresh: MonthData = {
+            key: nk,
+            vas: cur.vas.map((v) => ({
+              ...v,
+              sisaBank: 0,
+              sisaDiinput: false,
+              pengembalian: { status: "tidak-perlu", totalDiterima: 0 },
+              closingSelesai: false,
+            })),
+            lpj: [],
+            masuk: [],
+          };
+          months = [...months, fresh].sort((a, b) => a.key.localeCompare(b.key));
+        }
+        // Isi awal bulan berikutnya untuk VA ini: full saldo normal.
+        months = months.map((m) => {
+          if (m.key !== nk) return m;
+          if (m.masuk.some((r) => r.vaId === vaId && r.jenis === "awal")) return m;
+          const awal: DanaMasukRecord = {
+            id: `awal-${nk}-${vaId}`,
+            vaId,
+            tanggal: `${nk}-01`,
+            nominal: va.saldoNormal,
+            jenis: "awal",
+            keterangan: "Isi awal bulan, saldo normal penuh",
+          };
+          return { ...m, masuk: [...m.masuk, awal] };
+        });
+        return { ...s, months };
+      }),
+    addMasterVa: (p) => {
+      const full: MasterVa = { ...p, id: newId("va"), aktif: true };
       setState((s) => ({
-        months: [...s.months.map((m) => (m.key === s.activeMonth ? { ...m, ditutup: true } : m)), fresh],
-        activeMonth: nk,
+        ...s,
+        masterVa: [...s.masterVa, full],
+        months: s.months.map((m) =>
+          m.key === s.activeMonth
+            ? {
+                ...m,
+                vas: [
+                  ...m.vas,
+                  {
+                    id: full.id, nama: full.nama, nomor: full.nomor, grup: full.grup,
+                    saldoNormal: full.saldoNormal, sisaBank: 0, sisaDiinput: false,
+                    pengembalian: { status: "tidak-perlu", totalDiterima: 0 }, closingSelesai: false,
+                  },
+                ],
+              }
+            : m,
+        ),
       }));
+      return full;
+    },
+    updateMasterVa: (id, p) =>
+      setState((s) => ({
+        ...s,
+        masterVa: s.masterVa.map((mv) => (mv.id === id ? { ...mv, ...p } : mv)),
+        // Berlaku ke snapshot bulan di mana VA ini belum closing.
+        months: s.months.map((m) => ({
+          ...m,
+          vas: m.vas.map((v) =>
+            v.id === id && !v.closingSelesai
+              ? { ...v, nama: p.nama, nomor: p.nomor, grup: p.grup, saldoNormal: p.saldoNormal }
+              : v,
+          ),
+        })),
+      })),
+    setMasterVaAktif: (id, aktif) =>
+      setState((s) => ({ ...s, masterVa: s.masterVa.map((mv) => (mv.id === id ? { ...mv, aktif } : mv)) })),
+    deleteMasterVa: (id) => {
+      const punyaCatatan = state.months.some(
+        (m) => m.lpj.some((r) => r.vaId === id) || m.masuk.some((r) => r.vaId === id),
+      );
+      if (punyaCatatan) return false;
+      setState((s) => ({
+        ...s,
+        masterVa: s.masterVa.filter((mv) => mv.id !== id),
+        months: s.months.map((m) => ({
+          ...m,
+          vas: m.vas.filter((v) => !(v.id === id && !v.closingSelesai)),
+        })),
+      }));
+      return true;
     },
     reset: () => {
       void (async () => {

@@ -1,5 +1,5 @@
 import type { APIRoute } from "astro";
-import { ensureSchema, getSql } from "../../lib/db";
+import { ensureSchema, getSql, monthDitutupFlag } from "../../lib/db";
 import type { MonthData } from "../../store";
 
 export const prerender = false;
@@ -7,10 +7,10 @@ export const prerender = false;
 function isMonthData(d: unknown): d is MonthData {
   if (typeof d !== "object" || d === null) return false;
   const m = d as Record<string, unknown>;
-  return typeof m.key === "string" && Array.isArray(m.vas) && Array.isArray(m.proses);
+  return typeof m.key === "string" && Array.isArray(m.vas) && Array.isArray(m.lpj) && Array.isArray(m.masuk);
 }
 
-/** Insert bulan baru (dipakai tutupBulan untuk bulan hasil closing). */
+/** Insert bulan baru (dipakai closing VA untuk bulan berikutnya). */
 export const POST: APIRoute = async ({ request }) => {
   let body: unknown;
   try {
@@ -30,7 +30,7 @@ export const POST: APIRoute = async ({ request }) => {
        VALUES ($1, $2, $3::jsonb, 1)
        ON CONFLICT (key) DO NOTHING
        RETURNING version`,
-      [data.key, data.ditutup === true, JSON.stringify(data)],
+      [data.key, monthDitutupFlag(data), JSON.stringify(data)],
     )) as Array<{ version: number }>;
     if (rows.length === 0) {
       return Response.json({ error: "already-exists" }, { status: 409 });

@@ -1,5 +1,5 @@
 import type { APIRoute } from "astro";
-import { ensureSchema, getSql } from "../../../lib/db";
+import { ensureSchema, getSql, monthDitutupFlag } from "../../../lib/db";
 import type { MonthData } from "../../../store";
 
 export const prerender = false;
@@ -7,7 +7,7 @@ export const prerender = false;
 function isMonthData(d: unknown): d is MonthData {
   if (typeof d !== "object" || d === null) return false;
   const m = d as Record<string, unknown>;
-  return typeof m.key === "string" && Array.isArray(m.vas) && Array.isArray(m.proses);
+  return typeof m.key === "string" && Array.isArray(m.vas) && Array.isArray(m.lpj) && Array.isArray(m.masuk);
 }
 
 /** Update satu bulan dengan optimistic concurrency (version harus cocok). */
@@ -32,7 +32,7 @@ export const PUT: APIRoute = async ({ params, request }) => {
        SET data = $1::jsonb, ditutup = $2, version = version + 1, updated_at = now()
        WHERE key = $3 AND version = $4
        RETURNING version`,
-      [JSON.stringify(data), data.ditutup === true, key, version],
+      [JSON.stringify(data), monthDitutupFlag(data), key, version],
     )) as Array<{ version: number }>;
     if (rows.length > 0) {
       return Response.json({ version: rows[0].version });

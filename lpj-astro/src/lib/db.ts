@@ -1,6 +1,10 @@
 import { neon, type NeonQueryFunction } from "@neondatabase/serverless";
 import { seed } from "../seed";
-import type { AppState, MonthData } from "../store";
+import type { AppState, MasterVa, MonthData } from "../store";
+
+/** ditutup adalah turunan dari snapshot VA (semua closingSelesai). */
+export const monthDitutupFlag = (m: MonthData): boolean =>
+  Array.isArray(m.vas) && m.vas.length > 0 && m.vas.every((v) => v.closingSelesai === true);
 
 /* Server-only module: Neon Postgres access for the /api routes.
    Driver: @neondatabase/serverless over HTTP. Use sql.query(sql, params)
@@ -49,7 +53,7 @@ export function ensureSchema(sql: Sql): Promise<void> {
   return schemaPromise;
 }
 
-/** Seed Oktober 2026 saat tabel masih kosong. Return true bila men-seed. */
+/** Seed Jul-Okt 2026 (seed v2) saat tabel masih kosong. Return true bila men-seed. */
 export async function seedIfEmpty(sql: Sql): Promise<boolean> {
   const rows = (await sql.query("SELECT COUNT(*)::int AS n FROM lpj_months", [])) as Array<{ n: number }>;
   if (rows[0] && rows[0].n > 0) return false;
@@ -59,7 +63,7 @@ export async function seedIfEmpty(sql: Sql): Promise<boolean> {
       `INSERT INTO lpj_months (key, ditutup, data, version)
        VALUES ($1, $2, $3::jsonb, 1)
        ON CONFLICT (key) DO NOTHING`,
-      [m.key, m.ditutup, JSON.stringify(m)],
+      [m.key, monthDitutupFlag(m), JSON.stringify(m)],
     );
   }
   await sql.query(
@@ -67,7 +71,24 @@ export async function seedIfEmpty(sql: Sql): Promise<boolean> {
      ON CONFLICT (k) DO UPDATE SET v = EXCLUDED.v`,
     [s.activeMonth],
   );
+  await sql.query(
+    `INSERT INTO lpj_meta (k, v) VALUES ('masterVa', $1)
+     ON CONFLICT (k) DO UPDATE SET v = EXCLUDED.v`,
+    [JSON.stringify(s.masterVa)],
+  );
   return true;
+}
+
+/** Master VA dari lpj_meta; default 10 VA standar bila meta kosong/rusak. */
+export async function readMasterVa(sql: Sql): Promise<MasterVa[]> {
+  const meta = (await sql.query("SELECT v FROM lpj_meta WHERE k = 'masterVa'", [])) as Array<{ v: string }>;
+  if (meta[0]?.v) {
+    try {
+      const parsed = JSON.parse(meta[0].v) as MasterVa[];
+      if (Array.isArray(parsed) && parsed.every((x) => x && typeof x.id === "string")) return parsed;
+    } catch { /* jatuh ke default di bawah */ }
+  }
+  return seed().masterVa;
 }
 
 export interface StatePayload extends AppState {
@@ -90,7 +111,8 @@ export async function readState(sql: Sql): Promise<StatePayload> {
     meta[0]?.v && months.some((m) => m.key === meta[0].v)
       ? meta[0].v
       : (months[months.length - 1]?.key ?? seed().activeMonth);
-  return { months, activeMonth, versions };
+  const masterVa = await readMasterVa(sql);
+  return { months, activeMonth, masterVa, versions };
 }
 
 /** Hapus semua data lalu seed ulang; dipakai POST /api/reset. */
