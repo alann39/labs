@@ -214,11 +214,45 @@ button { font: inherit; }
 .help-step .t { font-size: 14px; font-weight: 500; }
 .help-step .d { font-size: 14px; color: var(--text-secondary); line-height: 1.55; }
 
+/* ---------- Revisi model catatan (2026-11-07) ---------- */
+
+.cell-sub { display: block; font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+.row-actions { display: inline-flex; gap: var(--space-2); align-items: center; }
+
+.progress-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-4); margin-top: var(--space-4); }
+.progress-cell { padding: var(--space-4); border-radius: var(--radius-panel); background: var(--surface-muted); }
+.progress-value { font-size: var(--text-xl); font-weight: 500; line-height: 1.15; }
+.progress-label { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+.follow-list { list-style: none; margin: var(--space-2) 0 0; padding: 0; }
+.follow-list li { padding: var(--space-3) 0; border-top: 1px solid var(--border-subtle); font-size: 14px; line-height: 1.55; }
+.follow-list li:first-child { border-top: 0; }
+
+.stat-strip.five { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+
+.form-stack { display: flex; flex-direction: column; gap: var(--space-5); }
+.form-label { font-size: 14px; color: var(--text-secondary); margin-bottom: var(--space-2); }
+.check-row { display: flex; gap: var(--space-3); align-items: flex-start; cursor: pointer; }
+.check-row input { width: 20px; height: 20px; flex: none; margin: 2px 0 0; accent-color: var(--accent); }
+.check-title { display: block; font-size: 14px; font-weight: 500; }
+.check-desc { display: block; font-size: 12px; color: var(--text-muted); margin-top: 2px; line-height: 1.55; }
+
+.va-block { padding: var(--space-5) 0; border-top: 1px solid var(--border-subtle); }
+.va-block:first-child { border-top: 0; padding-top: 0; }
+.va-block:last-child { padding-bottom: 0; }
+.va-block-head { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
+.va-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--space-3) var(--space-4); margin-top: var(--space-4); }
+.va-stat .k { font-size: 12px; color: var(--text-muted); }
+.va-stat .v { font-size: 14px; font-weight: 500; margin-top: 2px; }
+.cell-input.small { width: 150px; height: var(--control-height-sm); margin-top: 2px; }
+
 /* ---------- Responsive ---------- */
 
 @media (max-width: 1100px) {
   .grid-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .stat-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .stat-strip.five { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .progress-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .grid-2col { grid-template-columns: minmax(0, 1fr); }
 }
 
@@ -226,4 +260,6 @@ button { font: inherit; }
   .shell { flex-direction: column; padding: var(--space-4); }
   .sidebar { width: 100%; position: static; min-height: 0; }
   .main { width: 100%; }
+  .page-head { flex-wrap: wrap; }
+  .head-actions { flex-wrap: wrap; width: 100%; min-width: 0; }
 }

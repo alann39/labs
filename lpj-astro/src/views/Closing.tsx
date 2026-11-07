@@ -1,101 +1,166 @@
 import { useState } from "react";
 import { Button } from "@/components/arc/button/button";
-import { SortableDataTable } from "@/components/arc/sortable-data-table/sortable-data-table";
+import { Badge } from "@/components/arc/badge/badge";
 import { Alert } from "@/components/arc/alert/alert";
 import { Dialog, DialogContent, DialogClose } from "@/components/arc/dialog/dialog";
+import { DatePicker } from "@/components/arc/date-picker/date-picker";
+import { MoneyInput } from "@/components/arc/money-input/money-input";
+import { Textarea } from "@/components/arc/textarea/textarea";
 import { PageHead } from "../components/PageHead";
-import { fmtNum, fmtRp, namaBulan, nextMonthKey } from "../format";
-import { monthTotals, useStore, vaStats } from "../store";
+import { fmtNum, fmtRp, fmtTglPanjang, namaBulan, toISO } from "../format";
+import {
+  monthDitutup, monthTotals, useStore, vaStats, vaStatus, statusPengembalian,
+  PENGEMBALIAN_LABEL, VA_STATUS_BADGE, type VA,
+} from "../store";
 import type { View } from "../App";
 
-export function Closing({ go, onHelp }: { go: (v: View) => void; onHelp: () => void }) {
-  const { month, setSisaBank, tutupBulan } = useStore();
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const totals = monthTotals(month);
-  const bulanDepan = namaBulan(nextMonthKey(month.key));
+function VaBlock({ va }: { va: VA }) {
+  const { month, setSisaBank, confirmPengembalian, closingVa } = useStore();
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [tanggal, setTanggal] = useState<Date | undefined>(undefined);
+  const [nominal, setNominal] = useState<number | null>(null);
+  const [catatan, setCatatan] = useState("");
+  const s = vaStats(month, va);
+  const statusP = statusPengembalian(month, va);
+  const badge = VA_STATUS_BADGE[vaStatus(month, va)];
+  const lpjClosing = month.lpj.find((r) => r.vaId === va.id && r.lpjClosing);
+  const sisaPengembalian = s.dk > 0 ? s.dk - va.pengembalian.totalDiterima : 0;
+  const bisaClosing = !va.closingSelesai && va.sisaDiinput && (s.dk <= 0 || statusP === "diterima");
 
-  const rows = month.vas.map((va) => {
-    const s = vaStats(month, va);
-    return { id: va.id, nama: va.nama, normal: va.saldoNormal, masuk: s.masuk, lpj: s.lpj, sisa: va.sisaBank, dk: s.dk, isiUlang: va.saldoNormal };
-  });
+  const alasan: string[] = [];
+  if (!va.closingSelesai) {
+    if (!va.sisaDiinput) alasan.push("Sisa di bank belum diinput");
+    if (s.dk > 0 && statusP !== "diterima") alasan.push("Pengembalian belum lunas");
+  }
+
+  const bukaDialog = () => {
+    setTanggal(new Date());
+    setNominal(sisaPengembalian > 0 ? sisaPengembalian : null);
+    setCatatan("");
+    setDialogOpen(true);
+  };
+
+  return (
+    <div className="va-block">
+      <div className="va-block-head">
+        <span style={{ fontSize: 16, fontWeight: 500 }}>{va.nama}</span>
+        <Badge tone={badge.tone}>{badge.label}</Badge>
+        <div className="spacer" />
+        {!va.closingSelesai && s.dk > 0 && (
+          <Button size="sm" variant="secondary" onClick={bukaDialog}>Konfirmasi pengembalian</Button>
+        )}
+        {!va.closingSelesai && (
+          <Button size="sm" variant="secondary" disabled={!bisaClosing} onClick={() => closingVa(va.id)}>Closing VA</Button>
+        )}
+      </div>
+
+      <div className="va-stats">
+        <div className="va-stat"><div className="k">Saldo normal</div><div className="v num">{fmtRp(va.saldoNormal)}</div></div>
+        <div className="va-stat"><div className="k">Total masuk</div><div className="v num">{fmtRp(s.masuk)}</div></div>
+        <div className="va-stat"><div className="k">Total LPJ</div><div className="v num">{fmtRp(s.lpj)}</div></div>
+        <div className="va-stat">
+          <div className="k">Sisa di bank</div>
+          <input
+            key={`${month.key}-${va.id}-${va.sisaBank}`}
+            className="cell-input small"
+            defaultValue={fmtNum(va.sisaBank)}
+            inputMode="numeric"
+            aria-label={`Sisa saldo di bank ${va.nama}`}
+            disabled={va.closingSelesai}
+            onBlur={(e) => {
+              const nilai = parseInt(e.target.value.replace(/\D/g, ""), 10);
+              if (!Number.isNaN(nilai) && nilai !== va.sisaBank) setSisaBank(va.id, nilai);
+              e.target.value = fmtNum(Number.isNaN(nilai) ? va.sisaBank : nilai);
+            }}
+          />
+        </div>
+        <div className="va-stat">
+          <div className="k">Selisih (dana dikembalikan)</div>
+          <div className="v num" style={{ color: s.dk < 0 ? "var(--danger)" : s.dk > 0 ? "var(--success)" : "var(--foreground)" }}>{fmtRp(s.dk)}</div>
+        </div>
+        <div className="va-stat">
+          <div className="k">Pengembalian</div>
+          <div className="v" style={{ fontSize: 14 }}>
+            {PENGEMBALIAN_LABEL[statusP]}
+            {s.dk > 0 && va.pengembalian.totalDiterima > 0 ? ` · ${fmtRp(va.pengembalian.totalDiterima)}` : ""}
+          </div>
+        </div>
+      </div>
+
+      <p className="footnote" style={{ marginTop: 12 }}>
+        {lpjClosing
+          ? `Cek LPJ Closing: ${lpjClosing.no} ${fmtRp(lpjClosing.nominal)} + sisa bank ${fmtRp(va.sisaBank)} = ${fmtRp(lpjClosing.nominal + va.sisaBank)}, saldo normal ${fmtRp(va.saldoNormal)}. Selisih cek ini sama dengan dana dikembalikan bila semua LPJ lain sudah diisi kembali.`
+          : "Belum ada LPJ yang ditandai LPJ Closing untuk VA ini."}
+        {s.dk < 0 ? " Kelebihan LPJ: kekurangan ditutup dept secara terpisah, di luar pengembalian." : ""}
+        {alasan.length > 0 ? ` Closing belum bisa: ${alasan.join("; ").toLowerCase()}.` : ""}
+      </p>
+
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent
+          title={`Konfirmasi pengembalian ${va.nama}`}
+          description={`Selisih yang harus dikembalikan ${fmtRp(s.dk)}. Sudah diterima ${fmtRp(va.pengembalian.totalDiterima)}, sisa ${fmtRp(sisaPengembalian)}.`}
+        >
+          <div className="form-stack">
+            <DatePicker label="Tanggal diterima" value={tanggal} onChange={setTanggal} locale="id-ID" format={{ day: "2-digit", month: "short", year: "numeric" }} />
+            <MoneyInput
+              label="Nominal diterima"
+              currency="IDR"
+              currencies={["IDR"]}
+              locale="id-ID"
+              value={nominal}
+              onValueChange={setNominal}
+              quickAdd={[]}
+              description="Boleh sebagian. Nominal terakumulasi ke total diterima."
+            />
+            <Textarea label="Catatan (opsional)" value={catatan} onChange={(e) => setCatatan(e.target.value)} rows={2} placeholder="Catatan penerimaan pengembalian" />
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
+              <DialogClose asChild>
+                <Button variant="secondary">Batal</Button>
+              </DialogClose>
+              <Button
+                disabled={!tanggal || nominal === null || nominal <= 0}
+                onClick={() => {
+                  if (!tanggal || nominal === null) return;
+                  confirmPengembalian(va.id, { tanggal: toISO(tanggal), nominal, catatan: catatan.trim() || undefined });
+                  setDialogOpen(false);
+                }}
+              >
+                Simpan konfirmasi
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+export function Closing({ go, onHelp }: { go: (v: View) => void; onHelp: () => void }) {
+  const { month } = useStore();
+  const totals = monthTotals(month);
+  const ditutup = monthDitutup(month);
+  const jumlahClosing = month.vas.filter((v) => v.closingSelesai).length;
 
   return (
     <>
       <PageHead
-        title="Closing bulanan"
-        sub={`${namaBulan(month.key)} · Hasil closing menentukan dana yang wajib dikembalikan dan pengisian ulang ${bulanDepan}`}
+        title="Closing per VA"
+        sub={`${namaBulan(month.key)} · Closing berlaku per VA setelah selisihnya dikembalikan dan diterima keuangan`}
         onHelp={onHelp}
-      />
+      >
+        <Button variant="secondary" onClick={() => go("dashboard")}>Ke dashboard</Button>
+      </PageHead>
 
-      {totals.vaKurang.length > 0 && !month.ditutup && (
+      {totals.vaKurang.length > 0 && (
         <Alert tone="warning" title={`${totals.vaKurang.length} VA kelebihan LPJ bulan ini`}>
-          {totals.vaKurang.map((v) => v.nama.replace("Konstruksi ", "")).join(", ")}. Kekurangannya wajib ditutup dept saat closing sebelum pengisian ulang.
+          {totals.vaKurang.map((v) => v.nama.replace("Konstruksi ", "")).join(", ")}. Kekurangannya ditutup dept secara terpisah sebelum pengisian ulang.
         </Alert>
       )}
-      {month.ditutup && (
+      {ditutup && (
         <Alert tone="success" title={`Bulan ${namaBulan(month.key)} sudah ditutup`}>
-          Pengisian ulang {bulanDepan} sudah dibuat otomatis sebesar full saldo normal tiap VA.
+          Semua VA sudah closing. Isi awal bulan berikutnya sudah dibuat sebesar full saldo normal tiap VA.
         </Alert>
       )}
-
-      <section className="card">
-        <SortableDataTable
-          caption={`Closing ${namaBulan(month.key)}`}
-          rows={rows}
-          rowKey="id"
-          defaultSort={{ key: "nama", direction: "asc" }}
-          columns={[
-            {
-              key: "nama", label: "VA / departemen",
-              render: (v, row) => (
-                <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                  {(row as { dk: number }).dk < 0 && <span aria-hidden style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--danger)", flex: "none" }} />}
-                  {v as string}
-                </span>
-              ),
-            },
-            { key: "normal", label: "Saldo normal", numeric: true, render: (v) => <span className="num">{fmtNum(v as number)}</span> },
-            { key: "masuk", label: "Total masuk", numeric: true, render: (v) => <span className="num">{fmtNum(v as number)}</span> },
-            { key: "lpj", label: "Total LPJ", numeric: true, render: (v) => <span className="num">{fmtNum(v as number)}</span> },
-            {
-              key: "sisa", label: "Sisa di bank", numeric: true, sortable: false,
-              render: (_v, row) => {
-                const r = row as { id: string; sisa: number };
-                return (
-                  <input
-                    key={`${month.key}-${r.id}-${r.sisa}`}
-                    className="cell-input"
-                    defaultValue={fmtNum(r.sisa)}
-                    inputMode="numeric"
-                    aria-label={`Sisa saldo di bank ${(row as { nama: string }).nama}`}
-                    disabled={month.ditutup}
-                    onBlur={(e) => {
-                      const nilai = parseInt(e.target.value.replace(/\D/g, ""), 10);
-                      if (!Number.isNaN(nilai) && nilai !== r.sisa) setSisaBank(r.id, nilai);
-                      e.target.value = fmtNum(Number.isNaN(nilai) ? r.sisa : nilai);
-                    }}
-                  />
-                );
-              },
-            },
-            {
-              key: "dk", label: "Dikembalikan", numeric: true,
-              render: (v) => <span className="num" style={{ color: (v as number) < 0 ? "var(--danger)" : "var(--success)", fontWeight: 500 }}>{fmtNum(v as number)}</span>,
-            },
-            { key: "isiUlang", label: `Isi ulang ${bulanDepan.split(" ")[0]}`, numeric: true, render: (v) => <span className="num" style={{ fontWeight: 500 }}>{fmtNum(v as number)}</span> },
-          ]}
-        />
-        <div style={{ background: "var(--surface-muted)", borderRadius: 18, padding: "14px 20px", marginTop: 16, display: "flex", flexWrap: "wrap", gap: "8px 32px", alignItems: "baseline" }}>
-          <strong style={{ fontWeight: 500 }}>Total (10 VA)</strong>
-          <span className="num">Masuk {fmtNum(totals.masuk)}</span>
-          <span className="num">LPJ {fmtNum(totals.lpj)}</span>
-          <span className="num">Sisa {fmtNum(totals.sisa)}</span>
-          <span className="num">Dikembalikan {fmtNum(totals.dkPositif)}</span>
-          <span className="num">Isi ulang {fmtNum(totals.normal)}</span>
-        </div>
-      </section>
-
-      <p className="footnote">Total dikembalikan hanya menjumlahkan VA bersaldo positif. VA minus (titik merah) tidak mengurangi total. Kolom sisa di bank bisa diklik untuk mengisi hasil rekonsiliasi mutasi bank.</p>
 
       <section className="card">
         <div className="action-bar">
@@ -105,44 +170,29 @@ export function Closing({ go, onHelp }: { go: (v: View) => void; onHelp: () => v
           </div>
           <div className="sep" />
           <div>
-            <div className="k">Total isi ulang {bulanDepan} (full saldo normal)</div>
-            <div className="v num">{fmtRp(totals.normal)}</div>
+            <div className="k">Sudah diterima</div>
+            <div className="v num">{fmtRp(totals.diterima)}</div>
+          </div>
+          <div className="sep" />
+          <div>
+            <div className="k">Belum diterima</div>
+            <div className="v num">{fmtRp(totals.belumDiterima)}</div>
           </div>
           <div style={{ flex: 1 }} />
-          <Button disabled={month.ditutup} onClick={() => setConfirmOpen(true)}>
-            Tutup bulan dan buat pengisian
-          </Button>
+          <div>
+            <div className="k">VA sudah closing</div>
+            <div className="v num">{jumlahClosing} dari {month.vas.length}</div>
+          </div>
         </div>
       </section>
 
-      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <DialogContent
-          title={`Tutup bulan ${namaBulan(month.key)}?`}
-          description="Setelah ditutup, angka bulan ini terkunci dan pengisian ulang bulan berikutnya dibuat otomatis."
-        >
-          <div className="pop-rows" style={{ margin: "8px 0 20px" }}>
-            <div className="pop-row"><span className="k">Total wajib dikembalikan</span><span className="num">{fmtRp(totals.dkPositif)}</span></div>
-            <div className="pop-row"><span className="k">Total isi ulang {bulanDepan}</span><span className="num">{fmtRp(totals.normal)}</span></div>
-            {totals.vaKurang.length > 0 && (
-              <div className="pop-row"><span className="k">VA minus (ditutup terpisah)</span><span>{totals.vaKurang.map((v) => v.nama.replace("Konstruksi ", "")).join(", ")}</span></div>
-            )}
-          </div>
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
-            <DialogClose asChild>
-              <Button variant="secondary">Batal</Button>
-            </DialogClose>
-            <Button
-              onClick={() => {
-                tutupBulan();
-                setConfirmOpen(false);
-                go("dashboard");
-              }}
-            >
-              Tutup bulan
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <section className="card">
+        {month.vas.map((va) => (
+          <VaBlock key={`${month.key}-${va.id}`} va={va} />
+        ))}
+      </section>
+
+      <p className="footnote">Closing VA mengunci catatan VA itu di bulan ini dan membuat isi awal bulan berikutnya sebesar full saldo normal untuk VA tersebut. Total wajib dikembalikan hanya menjumlahkan VA berselisih positif.</p>
     </>
   );
 }

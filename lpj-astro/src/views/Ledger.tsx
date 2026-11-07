@@ -9,63 +9,100 @@ import { Popover, PopoverTrigger, PopoverContent } from "@/components/arc/popove
 import { EmptyState } from "@/components/arc/empty-state/empty-state";
 import { PageHead } from "../components/PageHead";
 import { StatCell } from "../components/Stat";
-import { fmtNum, fmtRp, fmtTgl, namaBulan } from "../format";
-import { STAGE_ACTION, useStore, vaStats, type Stage } from "../store";
+import { ConfirmDelete } from "../components/ConfirmDelete";
+import { fmtNum, fmtRp, fmtTgl, fmtTglPanjang } from "../format";
+import {
+  useStore, vaStats, khususSudahAdaLpj, type LpjRecord, type DanaMasukRecord,
+} from "../store";
 import type { View } from "../App";
+import { LpjFormDialog } from "./LpjView";
+import { MasukFormDialog } from "./DanaMasukView";
 
 type Entry = {
   id: string;
   tanggal: string;
-  jenis: "Pengisian" | "Proses LPJ";
+  jenis: string;
+  tone: "success" | "warning" | "info" | "neutral";
   keterangan: string;
+  tautan: string;
   masuk: number | null;
   lpj: number | null;
-  status: string;
-  statusTone: "success" | "warning" | "neutral";
-  prosesId?: string;
-  stage?: Stage;
+  kind: "lpj" | "masuk";
+  recordId: string;
 };
 
+const LPJ_TONE: Record<string, Entry["tone"]> = { closing: "success", khusus: "info", reguler: "neutral" };
+const MASUK_TONE: Record<DanaMasukRecord["jenis"], Entry["tone"]> = { awal: "neutral", kembali: "success", khusus: "info" };
+const MASUK_LABEL: Record<DanaMasukRecord["jenis"], string> = { awal: "Isi Awal", kembali: "Pengisian Kembali", khusus: "Pengisian Khusus" };
+
 export function Ledger({ vaId, setVaId, go, onHelp }: { vaId: string; setVaId: (id: string) => void; go: (v: View) => void; onHelp: () => void }) {
-  const { month, advanceProses } = useStore();
+  const { month, deleteLpj, deleteMasuk } = useStore();
   const [filter, setFilter] = useState("semua");
+  const [editLpj, setEditLpj] = useState<LpjRecord | null>(null);
+  const [lpjFormOpen, setLpjFormOpen] = useState(false);
+  const [editMasuk, setEditMasuk] = useState<DanaMasukRecord | null>(null);
+  const [masukFormOpen, setMasukFormOpen] = useState(false);
+  const [hapus, setHapus] = useState<Entry | null>(null);
+  const [hapusGagal, setHapusGagal] = useState<string | null>(null);
   const va = month.vas.find((v) => v.id === vaId) ?? month.vas[0];
   const s = vaStats(month, va);
+  const terkunci = va.closingSelesai;
 
   const entries = useMemo<Entry[]>(() => {
-    const list: Entry[] = [{
-      id: `open-${va.id}`, tanggal: `${month.key}-01`, jenis: "Pengisian",
-      keterangan: `Isi ulang saldo normal ${namaBulan(month.key)}`, masuk: va.saldoNormal, lpj: null,
-      status: "Selesai", statusTone: "success",
-    }];
-    const prosesVa = month.proses.filter((p) => p.vaId === va.id).sort((a, b) => a.tanggal.localeCompare(b.tanggal));
-    for (const p of prosesVa) {
-      const statusMap: Record<Stage, { t: string; tone: Entry["statusTone"] }> = {
-        pengajuan: { t: "Menunggu pemeriksaan", tone: "warning" },
-        pemeriksaan: { t: "Dalam pemeriksaan", tone: "warning" },
-        disetujui: { t: "Menunggu pengisian", tone: "warning" },
-        pengisian: { t: `Diisi kembali ${p.tanggalIsi ? fmtTgl(p.tanggalIsi) : ""}`, tone: "success" },
-        selesai: { t: "Selesai", tone: "success" },
-      };
-      list.push({
-        id: p.id, tanggal: p.tanggal, jenis: "Proses LPJ",
-        keterangan: `${p.no} · ${p.keterangan}`, masuk: null, lpj: p.nominal,
-        status: statusMap[p.stage].t, statusTone: statusMap[p.stage].tone, prosesId: p.id, stage: p.stage,
-      });
-      if ((p.stage === "pengisian" || p.stage === "selesai") && p.tanggalIsi) {
-        list.push({
-          id: `${p.id}-isi`, tanggal: p.tanggalIsi, jenis: "Pengisian",
-          keterangan: `Pengisian kembali ${p.no}`, masuk: p.nominal, lpj: null,
-          status: "Selesai", statusTone: "success",
-        });
+    const list: Entry[] = [];
+    for (const r of month.masuk) {
+      if (r.vaId !== va.id) continue;
+      let tautan = "";
+      if (r.jenis === "kembali") {
+        const target = r.lpjId ? month.lpj.find((x) => x.id === r.lpjId) : undefined;
+        tautan = target ? `Untuk ${target.no}` : "Tanpa tautan LPJ";
+      } else if (r.jenis === "khusus") {
+        const anak = month.lpj.find((x) => x.khususDariMasukId === r.id);
+        tautan = anak ? `Sudah ada ${anak.no}` : "Belum ada LPJ khusus";
+      } else {
+        tautan = "Saldo normal penuh";
       }
+      list.push({
+        id: `m-${r.id}`, tanggal: r.tanggal,
+        jenis: MASUK_LABEL[r.jenis], tone: MASUK_TONE[r.jenis],
+        keterangan: r.keterangan ?? MASUK_LABEL[r.jenis], tautan,
+        masuk: r.nominal, lpj: null, kind: "masuk", recordId: r.id,
+      });
     }
-    return list.sort((a, b) => a.tanggal.localeCompare(b.tanggal));
+    for (const r of month.lpj) {
+      if (r.vaId !== va.id) continue;
+      const label = r.lpjClosing ? "LPJ Closing" : r.jenis === "khusus" ? "LPJ Khusus" : "LPJ Reguler";
+      let tautan = "";
+      if (r.jenis === "khusus") {
+        const induk = month.masuk.find((x) => x.id === r.khususDariMasukId);
+        tautan = induk ? `Dari pengisian khusus ${fmtTgl(induk.tanggal)}` : "Pengisian khusus";
+      } else {
+        const isi = month.masuk.find((x) => x.jenis === "kembali" && x.lpjId === r.id);
+        tautan = isi ? `Diisi kembali ${fmtTgl(isi.tanggal)}` : "Belum diisi kembali";
+      }
+      list.push({
+        id: `l-${r.id}`, tanggal: r.tanggal, jenis: label,
+        tone: LPJ_TONE[r.lpjClosing ? "closing" : r.jenis],
+        keterangan: `${r.no} · ${r.keterangan}`, tautan,
+        masuk: null, lpj: r.nominal, kind: "lpj", recordId: r.id,
+      });
+    }
+    return list.sort((a, b) => a.tanggal.localeCompare(b.tanggal) || a.id.localeCompare(b.id));
   }, [month, va]);
 
   const filtered = entries.filter((e) =>
-    filter === "semua" ? true : filter === "proses" ? e.jenis === "Proses LPJ" : e.jenis === "Pengisian",
+    filter === "semua" ? true : filter === "lpj" ? e.kind === "lpj" : e.kind === "masuk",
   );
+
+  const bukaEdit = (e: Entry) => {
+    if (e.kind === "lpj") {
+      setEditLpj(month.lpj.find((r) => r.id === e.recordId) ?? null);
+      setLpjFormOpen(true);
+    } else {
+      setEditMasuk(month.masuk.find((r) => r.id === e.recordId) ?? null);
+      setMasukFormOpen(true);
+    }
+  };
 
   return (
     <>
@@ -78,18 +115,19 @@ export function Ledger({ vaId, setVaId, go, onHelp }: { vaId: string; setVaId: (
             options={month.vas.map((v) => ({ value: v.id, label: `${v.nama} · ${v.nomor}` }))}
           />
         </div>
-        <Button onClick={() => go("form")}>
-          <Plus size={16} strokeWidth={1.75} /> Buat proses LPJ
+        <Button onClick={() => go("lpj")}>
+          <Plus size={16} strokeWidth={1.75} /> Input LPJ
         </Button>
       </PageHead>
 
       <section className="card">
-        <div className="stat-strip">
+        <div className="stat-strip five">
+          <StatCell label="Saldo normal" value={va.saldoNormal} />
           <StatCell label="Total dana masuk" value={s.masuk} />
-          <StatCell label="Jumlah LPJ disetujui" value={s.lpj} />
+          <StatCell label="Total LPJ" value={s.lpj} />
           <StatCell label="Sisa saldo di bank" value={va.sisaBank} />
           <StatCell
-            label="Dana dikembalikan"
+            label="Selisih (dana dikembalikan)"
             value={s.dk}
             highlight
             action={
@@ -102,9 +140,9 @@ export function Ledger({ vaId, setVaId, go, onHelp }: { vaId: string; setVaId: (
                 <PopoverContent side="bottom" align="end">
                   <div className="pop-rows">
                     <div className="pop-row"><span className="k">Total dana masuk</span><span className="num">{fmtRp(s.masuk)}</span></div>
-                    <div className="pop-row"><span className="k">Jumlah LPJ disetujui</span><span className="num">− {fmtRp(s.lpj)}</span></div>
+                    <div className="pop-row"><span className="k">Total LPJ</span><span className="num">− {fmtRp(s.lpj)}</span></div>
                     <div className="pop-row"><span className="k">Sisa saldo di bank</span><span className="num">− {fmtRp(va.sisaBank)}</span></div>
-                    <div className="pop-row total"><span>Dana dikembalikan</span><span className="num" style={{ color: "var(--accent)" }}>{fmtRp(s.dk)}</span></div>
+                    <div className="pop-row total"><span>Selisih</span><span className="num" style={{ color: "var(--accent)" }}>{fmtRp(s.dk)}</span></div>
                     <p className="pop-note">Hasil minus tidak mengurangi total. VA minus menutup kekurangannya secara terpisah.</p>
                   </div>
                 </PopoverContent>
@@ -121,21 +159,23 @@ export function Ledger({ vaId, setVaId, go, onHelp }: { vaId: string; setVaId: (
           label="Filter jenis transaksi"
           options={[
             { value: "semua", label: "Semua" },
-            { value: "proses", label: "Proses LPJ" },
-            { value: "pengisian", label: "Pengisian" },
+            { value: "lpj", label: "LPJ" },
+            { value: "masuk", label: "Dana masuk" },
           ]}
           value={filter}
           onValueChange={setFilter}
         />
       </div>
 
+      {hapusGagal && <p className="footnote" role="alert" style={{ color: "var(--danger)" }}>{hapusGagal}</p>}
+
       <section className="card">
         {filtered.length === 0 ? (
           <EmptyState
             icon={<Wallet size={24} strokeWidth={1.75} />}
             title="Belum ada transaksi"
-            description="Transaksi VA ini muncul setelah proses LPJ pertama dibuat."
-            action={<Button variant="secondary" onClick={() => go("form")}>Buat proses LPJ</Button>}
+            description="Transaksi VA ini muncul setelah LPJ atau dana masuk pertama dicatat."
+            action={<Button variant="secondary" onClick={() => go("lpj")}>Input LPJ</Button>}
           />
         ) : (
           <SortableDataTable
@@ -144,26 +184,20 @@ export function Ledger({ vaId, setVaId, go, onHelp }: { vaId: string; setVaId: (
             rowKey="id"
             defaultSort={{ key: "tanggal", direction: "asc" }}
             columns={[
-              { key: "tanggal", label: "Tanggal", render: (v) => fmtTgl(v as string) },
-              { key: "jenis", label: "Jenis", render: (v) => <Badge tone={v === "Proses LPJ" ? "warning" : "info"}>{v as string}</Badge> },
+              { key: "tanggal", label: "Tanggal", render: (v) => fmtTglPanjang(v as string) },
+              { key: "jenis", label: "Jenis", render: (v, row) => <Badge tone={(row as unknown as Entry).tone}>{v as string}</Badge> },
               { key: "keterangan", label: "Keterangan" },
+              { key: "tautan", label: "Tautan" },
               { key: "masuk", label: "Masuk (Rp)", numeric: true, render: (v) => (v == null ? "–" : <span className="num">{fmtNum(v as number)}</span>) },
               { key: "lpj", label: "LPJ (Rp)", numeric: true, render: (v) => (v == null ? "–" : <span className="num">{fmtNum(v as number)}</span>) },
               {
-                key: "status", label: "Status proses",
+                key: "aksi", label: "Aksi", sortable: false,
                 render: (_v, row) => {
                   const e = row as unknown as Entry;
-                  const action = e.stage ? STAGE_ACTION[e.stage] : undefined;
                   return (
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
-                      <span style={{ color: e.statusTone === "success" ? "var(--success)" : e.statusTone === "warning" ? "var(--warning)" : "var(--text-secondary)", fontSize: 12, fontWeight: 500 }}>
-                        {e.status}
-                      </span>
-                      {action && e.prosesId && !month.ditutup && (
-                        <Button size="sm" variant="secondary" onClick={() => advanceProses(e.prosesId!)}>
-                          {action}
-                        </Button>
-                      )}
+                    <span className="row-actions">
+                      <Button size="sm" variant="secondary" disabled={terkunci} onClick={() => bukaEdit(e)}>Edit</Button>
+                      <Button size="sm" variant="ghost" disabled={terkunci} onClick={() => { setHapusGagal(null); setHapus(e); }}>Hapus</Button>
                     </span>
                   );
                 },
@@ -172,7 +206,24 @@ export function Ledger({ vaId, setVaId, go, onHelp }: { vaId: string; setVaId: (
           />
         )}
       </section>
-      <p className="footnote">Setiap proses LPJ memuat tahap pengisian kembalinya sendiri, jadi dana masuk selalu tertaut ke LPJ yang dimaksud.</p>
+      <p className="footnote">Timeline gabungan LPJ dan dana masuk VA ini. Setiap pengisian kembali tertaut ke LPJ yang diisi, dan setiap LPJ khusus tertaut ke pengisian khususnya.</p>
+
+      <LpjFormDialog open={lpjFormOpen} onOpenChange={setLpjFormOpen} editing={editLpj} />
+      <MasukFormDialog open={masukFormOpen} onOpenChange={setMasukFormOpen} editing={editMasuk} />
+      <ConfirmDelete
+        open={hapus !== null}
+        onOpenChange={(o) => { if (!o) setHapus(null); }}
+        title={`Hapus catatan ${hapus?.jenis ?? ""}?`}
+        description={hapus ? `${hapus.keterangan}, ${fmtTglPanjang(hapus.tanggal)}. Catatan ini dihapus dari ${va.nama} untuk bulan ini.` : ""}
+        onConfirm={() => {
+          if (!hapus) return;
+          if (hapus.kind === "lpj") deleteLpj(hapus.recordId);
+          else if (!deleteMasuk(hapus.recordId)) {
+            setHapusGagal("Dana masuk khusus ini sudah punya LPJ khusus. Hapus LPJ khususnya dulu sebelum menghapus dana masuknya.");
+          }
+          setHapus(null);
+        }}
+      />
     </>
   );
 }
