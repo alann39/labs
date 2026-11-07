@@ -1,7 +1,7 @@
 import "@/components/arc/foundation.css";
 import "./index.css";
-import { StrictMode, useEffect, useState } from "react";
-import { BookOpen, CircleDollarSign, FileText, Flag, LayoutDashboard, LogOut, Moon, PanelLeftClose, PanelLeftOpen, Settings2, Sun } from "lucide-react";
+import { StrictMode, useEffect, useRef, useState } from "react";
+import { BookOpen, CircleDollarSign, CircleHelp, FileText, Flag, LayoutDashboard, LogOut, Menu, Moon, PanelLeftClose, PanelLeftOpen, Settings2, Sun, X } from "lucide-react";
 import { Button } from "@/components/arc/button/button";
 import { Tooltip } from "@/components/arc/tooltip/tooltip";
 import { Dialog, DialogContent, DialogClose } from "@/components/arc/dialog/dialog";
@@ -67,6 +67,53 @@ function Shell() {
   const [helpOpen, setHelpOpen] = useState(false);
   const [dark, setDark] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+  // Drawer navigasi mobile (≤900px): tertutup default, dibuka dari top
+  // bar. State lokal murni tampilan — perilaku desktop tidak tersentuh.
+  const [navOpen, setNavOpen] = useState(false);
+  // Top bar mobile jadi solid setelah halaman di-scroll melewati 8px
+  // (trait "turns solid on scroll" header Arc). Kelas .solid hanya
+  // berpengaruh pada ≤900px; di desktop top bar tidak dirender.
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 8);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+  // Pill penanda item aktif yang MELUNCUR di dalam sheet mobile:
+  // posisinya diukur dari DOM item aktif (offsetTop/offsetHeight) dan
+  // dipindah lewat transform. Hanya digambar pada ≤900px (CSS); di
+  // desktop item aktif tetap memakai background-nya sendiri.
+  const navRef = useRef<HTMLElement | null>(null);
+  const [pill, setPill] = useState<{ top: number; height: number } | null>(null);
+  useEffect(() => {
+    const measure = () => {
+      const nav = navRef.current;
+      if (!nav) return;
+      const active = nav.querySelector<HTMLElement>(".nav-item.active");
+      if (!active) { setPill(null); return; }
+      setPill({ top: active.offsetTop, height: active.offsetHeight });
+    };
+    measure();
+    const raf = requestAnimationFrame(measure);
+    window.addEventListener("resize", measure);
+    return () => { cancelAnimationFrame(raf); window.removeEventListener("resize", measure); };
+  }, [view, navOpen, collapsed]);
+
+  // Saat drawer terbuka: kunci scroll latar + Escape menutup.
+  useEffect(() => {
+    if (!navOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setNavOpen(false); };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = prev;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [navOpen]);
+
+  const navigate = (v: View) => { setView(v); setNavOpen(false); };
 
   useEffect(() => {
     const el = document.documentElement;
@@ -114,7 +161,43 @@ function Shell() {
 
   return (
     <div className="shell">
-      <aside className={`sidebar${collapsed ? " collapsed" : ""}`}>
+      {/* Top bar mobile (≤900px): brand + hamburger. Sidebar menjadi
+          sheet melayang (pola sidebar-rail Arc); konten utama langsung
+          tampil di viewport pertama tanpa panel navigasi statis. */}
+      <div className={`mobile-topbar${scrolled ? " solid" : ""}`}>
+        <div className="brand-mark" aria-hidden="true">Rp</div>
+        <div className="brand-name">LPJ kas kecil</div>
+        <div className="mobile-topbar-actions">
+          {/* Bantuan halaman aktif: jalur yang sama persis dengan
+              tombol Bantuan di PageHead (openHelp di Shell ini) —
+              di PageHead tombolnya disembunyikan pada ≤900px agar
+              tidak menggantung sendirian di konten. */}
+          <button
+            type="button"
+            className="mobile-menu-btn"
+            onClick={openHelp}
+            aria-label="Bantuan"
+          >
+            <CircleHelp size={22} strokeWidth={1.75} />
+          </button>
+          <button
+            type="button"
+            className="mobile-menu-btn"
+            onClick={() => setNavOpen(true)}
+            aria-label="Buka navigasi"
+            aria-expanded={navOpen}
+            aria-controls="sidebar-utama"
+          >
+            <Menu size={22} strokeWidth={1.75} />
+          </button>
+        </div>
+      </div>
+      <div
+        className={`sidebar-backdrop${navOpen ? " show" : ""}`}
+        onClick={() => setNavOpen(false)}
+        aria-hidden="true"
+      />
+      <aside id="sidebar-utama" className={`sidebar${collapsed ? " collapsed" : ""}${navOpen ? " open" : ""}`}>
         <div className="brand">
           <div className="brand-mark">Rp</div>
           <div className="brand-text">
@@ -132,15 +215,28 @@ function Shell() {
               {collapsed ? <PanelLeftOpen size={18} strokeWidth={1.75} /> : <PanelLeftClose size={18} strokeWidth={1.75} />}
             </button>
           </Tooltip>
+          <button
+            type="button"
+            className="icon-btn sidebar-close"
+            onClick={() => setNavOpen(false)}
+            aria-label="Tutup navigasi"
+          >
+            <X size={18} strokeWidth={1.75} />
+          </button>
         </div>
-        <nav aria-label="Navigasi utama">
+        <nav ref={navRef} aria-label="Navigasi utama">
+          <span
+            className="nav-pill"
+            aria-hidden="true"
+            style={pill ? { transform: `translateY(${pill.top}px)`, height: pill.height, opacity: 1 } : { opacity: 0 }}
+          />
           {NAV.map((item) => {
             const button = (
               <button
                 key={item.key}
                 type="button"
                 className={`nav-item${view === item.key ? " active" : ""}`}
-                onClick={() => setView(item.key)}
+                onClick={() => navigate(item.key)}
                 aria-current={view === item.key ? "page" : undefined}
                 aria-label={item.label}
               >

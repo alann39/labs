@@ -3,6 +3,7 @@ import * as XLSX from "xlsx";
 import { AlertTriangle, CheckCircle2, Clock, Download, Flag, Info, Plus } from "lucide-react";
 import { Button } from "@/components/arc/button/button";
 import SegmentedControl from "@/components/arc/segmented-control/segmented-control";
+import { SplitButton } from "@/components/arc/split-button/split-button";
 import { SortableDataTable } from "@/components/arc/sortable-data-table/sortable-data-table";
 import { Badge } from "@/components/arc/badge/badge";
 import { SearchField } from "@/components/arc/search-field/search-field";
@@ -181,12 +182,14 @@ export function Dashboard({ go, openLedger, onHelp }: { go: (v: View) => void; o
           value={month.key}
           onValueChange={setActiveMonth}
         />
-        <Button variant="secondary" onClick={() => go("masuk")}>
-          <Plus size={16} strokeWidth={1.75} /> Input dana masuk
-        </Button>
-        <Button onClick={() => go("lpj")}>
-          <Plus size={16} strokeWidth={1.75} /> Input LPJ
-        </Button>
+        <SplitButton
+          label="+ Input"
+          onClick={() => go("lpj")}
+          actions={[
+            { label: "Input LPJ", icon: <Plus size={16} strokeWidth={1.75} />, onSelect: () => go("lpj") },
+            { label: "Input dana masuk", icon: <Plus size={16} strokeWidth={1.75} />, onSelect: () => go("masuk") },
+          ]}
+        />
       </PageHead>
 
       {ditutup && (

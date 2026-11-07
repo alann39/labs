@@ -78,3 +78,27 @@
 .amount { font-size: 14px; font-weight: 500; white-space: nowrap; }
 
 .chev { flex: none; color: var(--text-muted); }
+
+/* Mobile (audit 390px): item terakhir overlap karena .main terdesak
+   meta kanan yang nowrap. Di layar kecil teks di dalam item jadi
+   layout kolom (nama → meta → badge bertumpuk rapi, masing-masing
+   min-width 0 + ellipsis), dan meta kanan (kanan) pindah ke baris
+   kedua selebar item, sejajar teks utama. Desktop tidak berubah. */
+@media (max-width: 640px) {
+  .row { flex-wrap: wrap; row-gap: 2px; }
+  .row > * { min-width: 0; }
+  .main {
+    flex-direction: column;
+    align-items: flex-start;
+    flex-wrap: nowrap;
+    gap: 4px;
+  }
+  .main > * { min-width: 0; max-width: 100%; }
+  .name { max-width: 100%; }
+  .row > .meta {
+    flex-basis: 100%;
+    order: 5;
+    padding-left: calc(28px + var(--space-3));
+    white-space: normal;
+  }
+}

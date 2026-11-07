@@ -61,6 +61,18 @@ button { font: inherit; }
   padding: 20px;
 }
 
+/* Navigasi mobile: top bar + backdrop drawer + tombol tutup sidebar
+   hanya hidup pada ≤900px (blok "Optimasi mobile" di akhir file);
+   di desktop ketiganya tidak dirender secara visual. */
+.mobile-topbar { display: none; }
+.sidebar-backdrop { display: none; }
+/* Pill penanda nav aktif: hanya hidup di dalam sheet ≤900px (blok
+   "Optimasi mobile"); di desktop item aktif memakai background biasa. */
+.nav-pill { display: none; }
+/* Kelas digandakan: tombol ini juga .icon-btn (display grid) yang
+   didefinisikan belakangan — tanpa penggandaan X akan bocor ke desktop. */
+.sidebar-close.sidebar-close { display: none; }
+
 .brand { display: flex; align-items: center; gap: var(--space-3); padding: 0 var(--space-1); }
 .brand-mark {
   width: 40px; height: 40px; flex: none;
@@ -596,4 +608,226 @@ button.link-cell:focus-visible { outline: 2px solid var(--accent); outline-offse
   .main { width: 100%; }
   .page-head { flex-wrap: wrap; }
   .head-actions { flex-wrap: wrap; width: 100%; min-width: 0; }
+}
+
+/* ---------- Optimasi mobile (audit 390×844, 2026-11-07) ----------
+   Semua aturan di bawah dibatasi ≤900px / ≤640px — tampilan desktop
+   (>900px) tidak berubah sama sekali. Blok ini sengaja ditaruh paling
+   akhir agar menang cascade atas blok responsif lama di atas. */
+
+@media (max-width: 900px) {
+  /* 0 — Tombol Bantuan PageHead disembunyikan di mobile: fungsinya
+     pindah ke top bar (tombol ? di sebelah hamburger, App.tsx).
+     Tanpa ini tombol ? menggantung sendirian di baris sendiri
+     karena .head-actions membungkus full-width pada ≤900px. */
+  .page-help-btn.page-help-btn { display: none; }
+
+  /* 1 — Navigasi sheet: top bar sticky menggantikan panel statis.
+     Sidebar jadi sheet melayang dari kiri (fixed, inset 12px, ±300px),
+     tertutup default; .main tidak lagi didorong panel sehingga
+     viewport pertama langsung berisi header halaman + data. */
+  /* Top bar menyatu ke latar saat halaman di posisi atas (transparan,
+     tanpa border/shadow) dan menjadi solid begitu di-scroll >8px —
+     kelas .solid dipasang listener scroll di App.tsx. */
+  .mobile-topbar {
+    display: flex; align-items: center; gap: var(--space-3);
+    position: sticky; top: var(--space-4); z-index: 40;
+    width: 100%;
+    padding: 10px 12px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--radius-surface);
+    box-shadow: none;
+    transition:
+      background var(--duration-standard) var(--ease-standard),
+      border-color var(--duration-standard) var(--ease-standard),
+      box-shadow var(--duration-standard) var(--ease-standard);
+  }
+  .mobile-topbar.solid {
+    background: var(--surface);
+    border-color: var(--border);
+    box-shadow: var(--shadow-resting);
+  }
+  /* Grup aksi kanan top bar: Bantuan (?) di kiri hamburger.
+     margin-left auto pindah ke grup ini; kedua tombol berbagi
+     kelas .mobile-menu-btn agar gaya + ukurannya identik. */
+  .mobile-topbar-actions {
+    display: flex; align-items: center; gap: var(--space-2);
+    margin-left: auto; flex: none;
+  }
+  .mobile-menu-btn {
+    width: 44px; height: 44px; flex: none;
+    display: grid; place-items: center;
+    border: 1px solid var(--border); border-radius: var(--radius-control);
+    background: var(--surface); color: var(--text-secondary);
+    cursor: pointer;
+    transition: border-color var(--duration-fast) var(--ease-standard), color var(--duration-fast) var(--ease-standard);
+  }
+  /* Sheet melayang ala Arc (pola block sidebar-rail): panel TIDAK
+     flush ke tepi — inset 12px, radius permukaan penuh, border utuh,
+     shadow floating; masuk/keluar slide + fade (transform/opacity). */
+  .sidebar {
+    position: fixed; top: 12px; bottom: 12px; left: 12px; z-index: 60;
+    width: min(300px, calc(100vw - 24px));
+    height: auto; min-height: 0;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-surface);
+    box-shadow: var(--shadow-floating);
+    overflow-y: auto;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateX(calc(-100% - 16px));
+    transition:
+      transform var(--duration-standard) var(--ease-standard),
+      opacity var(--duration-standard) var(--ease-standard);
+  }
+  .sidebar.open { transform: translateX(0); opacity: 1; pointer-events: auto; }
+  .sidebar-backdrop {
+    display: block;
+    position: fixed; inset: 0; z-index: 55;
+    background: oklch(0% 0 0 / 0.45);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    opacity: 0; visibility: hidden;
+    transition: opacity var(--duration-standard) var(--ease-standard), visibility 0s linear var(--duration-standard);
+  }
+  /* Pill penanda meluncur: satu elemen absolut di dalam nav yang
+     berpindah (transform/tinggi diukur JS dari item aktif); item
+     aktif tidak lagi menggambar background-nya sendiri di sheet. */
+  .sidebar nav { position: relative; }
+  .nav-pill {
+    display: block;
+    position: absolute; top: 0; left: 0; right: 0; z-index: 0;
+    border-radius: var(--radius-control);
+    background: var(--accent-subtle);
+    transition:
+      transform var(--duration-standard) var(--ease-standard),
+      height var(--duration-standard) var(--ease-standard),
+      opacity var(--duration-fast) var(--ease-standard);
+  }
+  .sidebar nav .nav-item { position: relative; z-index: 1; }
+  .sidebar nav .nav-item.active { background: transparent; }
+  .sidebar-backdrop.show {
+    opacity: 1; visibility: visible;
+    transition: opacity var(--duration-standard) var(--ease-standard);
+  }
+  .sidebar-close.sidebar-close { display: grid; margin-left: auto; width: 40px; height: 40px; }
+
+  /* 3 — Tabel sungguhan yang bisa digeser (mode kartu Arc ≤620px
+     dimatikan): display tabel dipulihkan, header tampil normal,
+     scroller Arc (induk langsung <table>) kembali overflow-x auto,
+     kolom pertama sticky. Selector .main table … mengalahkan CSS
+     module tabel Arc seperti blok compact ≥621px. */
+  .main div:has(> table) { overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch; }
+  .main table { display: table; width: 100%; min-width: 680px; }
+  .main table thead { display: table-header-group; }
+  .main table thead tr { display: table-row; padding: 0; overflow: visible; border-bottom: 0; }
+  .main table tbody { display: table-row-group; }
+  .main table tbody tr { display: table-row; min-height: 0; padding: 0; background: transparent; }
+  .main table tbody tr::after { content: none; }
+  .main table th {
+    display: table-cell; height: auto;
+    padding: 6px 12px;
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em;
+    border-bottom: 1px solid var(--border);
+  }
+  .main table td {
+    display: table-cell; height: auto;
+    padding: 6px 12px;
+    font-size: 13px; color: var(--foreground);
+    white-space: nowrap; overflow-wrap: normal;
+    vertical-align: middle;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .main table td[data-numeric] { text-align: right; }
+  .main table th:first-child,
+  .main table td:first-child {
+    position: sticky; left: 0; z-index: 2;
+    background-color: var(--cell-fill);
+    border-right: 1px solid var(--border);
+  }
+  .main table th:first-child { z-index: 3; }
+  /* Lebar kolom hasil ukur komponen (data-fixed) tidak valid di
+     mobile: pengukuran pertama terjadi saat tabel masih layout
+     kartu, persennya terlalu sempit dan teks nowrap tumpeng tindih
+     antar kolom. Layout auto membiarkan konten menentukan lebar
+     (tabel melebar → digeser). Ledger pengecualian: lebar px
+     eksplisitnya memang didesain fixed, dipertahankan. */
+  .main table[data-fixed] { table-layout: auto; }
+  .main .ledger-table table[data-fixed] { table-layout: fixed; }
+
+  /* 4 — Target sentuh ≥40px (visual ikon tetap, hanya kotak sentuh
+     yang membesar; ukuran desktop tidak berubah). */
+  .main table th[data-sortable] button { height: 40px; min-height: 40px; }
+  .btn-icon.btn-icon { width: 40px; height: 40px; min-height: 40px; }
+  .ledger-table .btn-icon.btn-icon { width: 40px; height: 40px; min-height: 40px; }
+  .row-icon-btn { width: 40px; height: 40px; }
+  .info-btn { width: 40px; height: 40px; }
+  /* Jangkar (i) di label statistik (KPI Dashboard + strip Ledger):
+     tombol inline tanpa kelas → dibesarkan lewat konteks .stat-label. */
+  .stat-label button { min-width: 36px; min-height: 36px; }
+  /* Tombol lain di sel tabel (tautan, info saldo normal): area
+     sentuh minimal 36×36px (jangkar (i) ikut terbawa aturan ini). */
+  .main table td button:not(.btn-icon) { min-width: 36px; min-height: 36px; }
+  /* X dialog (kelas module Arc ter-hash; dikenali dari aria-label). */
+  button[aria-label="Close dialog"] { width: 40px; height: 40px; }
+  /* Mata password di form login (aria-label dari messages komponen). */
+  form button[aria-label="Tampilkan kata sandi"],
+  form button[aria-label="Sembunyikan kata sandi"] { width: 40px; height: 40px; }
+  /* Item ToggleGroup di form: --tg-h menaikkan tinggi item sm 28→36px
+     hanya di dalam dialog form (pemilih lain tidak tersentuh).
+     Root ToggleGroup single ber-role "radiogroup"; itemnya dikenali
+     dari atribut data-toggle-item. */
+  .form-dialog [role="group"], .form-dialog [role="radiogroup"] { --tg-h: 36px; }
+  .form-dialog [data-toggle-item] { min-height: 36px; }
+
+  /* 7 — Baris Closing jadi grid tetap: [chevron 40] [nama+meta]
+     [badge+selisih kanan]; tombol aksi jatuh ke baris penuh di
+     bawahnya. Susunan identik di semua baris berapa pun panjang
+     nama VA (nama ter-ellipsis, bukan wrap acak). */
+  .closing-main {
+    display: grid;
+    grid-template-columns: 40px minmax(0, 1fr) auto;
+    column-gap: var(--space-3); row-gap: var(--space-2);
+    align-items: center;
+    min-height: 0;
+  }
+  .closing-main > :first-child { grid-column: 1; grid-row: 1; }
+  .closing-main .row-icon-btn { width: 40px; height: 40px; }
+  .closing-name {
+    grid-column: 2; grid-row: 1;
+    min-width: 0; overflow: hidden; text-overflow: ellipsis;
+  }
+  .closing-name + * { grid-column: 3; grid-row: 1; justify-self: end; }
+  .closing-meta { grid-column: 2; grid-row: 2; white-space: normal; }
+  .closing-main > .spacer { display: none; }
+  .closing-selisih { grid-column: 3; grid-row: 2; justify-self: end; }
+  .closing-main > .info-btn { grid-column: 1; grid-row: 2; }
+  .closing-main > button:not(.row-icon-btn):not(.info-btn) {
+    grid-column: 1 / -1; width: 100%; min-height: 40px;
+  }
+}
+
+@media (max-width: 640px) {
+  /* 2 — Nilai KPI terbaca: kartu nilai AnimatedCounter jadi 1 kolom
+     full-width (Dashboard + strip statistik Ledger) agar digit reel
+     tidak lagi meluber/bertumpuk di kartu 171px. */
+  .grid-metrics { grid-template-columns: minmax(0, 1fr); }
+  .stat-strip, .stat-strip.five { grid-template-columns: minmax(0, 1fr); }
+
+  /* 6 — Label grup grafik tidak lagi bertabrakan: font 10px, rotasi
+     -24° dengan jangkar ujung kanan (anchor end), teks tetap utuh
+     terbaca menurun ke kiri. Ruang bawah plot diperbesar agar label
+     miring muat di dalam kartu. */
+  .chart-plot { margin-bottom: 76px; }
+  .chart-axis + .chart-groups .chart-group { align-items: flex-end; }
+  .chart-group-label {
+    font-size: 10px; white-space: nowrap; text-align: right;
+    transform: rotate(-24deg); transform-origin: 100% 0;
+  }
+  .chart-bar-val { font-size: 10px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar, .sidebar-backdrop, .nav-pill, .mobile-topbar { transition: none; }
 }
