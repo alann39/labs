@@ -233,10 +233,52 @@ button { font: inherit; }
 .check-title { display: block; font-size: 14px; font-weight: 500; }
 .check-desc { display: block; font-size: 12px; color: var(--text-muted); margin-top: 2px; line-height: 1.55; }
 
-.va-block { padding: var(--space-5) 0; border-top: 1px solid var(--border-subtle); }
-.va-block:first-child { border-top: 0; padding-top: 0; }
-.va-block:last-child { padding-bottom: 0; }
-.va-block-head { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
+/* Tombol info (i): pola yang sama dengan popover rincian Dashboard. */
+.info-btn {
+  width: 28px; height: 28px; flex: none;
+  display: grid; place-items: center;
+  border: 0; border-radius: var(--radius-control);
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-standard), color var(--duration-fast) var(--ease-standard);
+}
+@media (hover: hover) and (pointer: fine) {
+  .info-btn:hover { background: var(--surface-muted); color: var(--foreground); }
+}
+
+/* ---------- Closing per VA: panel list ringkas (2026-11-07) ---------- */
+
+/* Panel mandiri pola FollowUpBlock: baris full-bleed ber-divider hairline.
+   Detail angka + input sisa pindah ke area expandable di bawah baris utama;
+   rincian cek LPJ Closing pindah ke popover info (i). */
+.closing-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-surface);
+  box-shadow: var(--shadow-resting);
+  overflow: hidden;
+}
+.closing-item { padding: 10px var(--space-6); }
+.closing-item + .closing-item { border-top: 1px solid var(--border-subtle); }
+.closing-main { display: flex; align-items: center; gap: var(--space-3); min-height: 40px; flex-wrap: wrap; }
+.closing-name { font-size: 15px; font-weight: 500; white-space: nowrap; }
+.closing-meta { font-size: 13px; color: var(--text-secondary); white-space: nowrap; }
+.closing-selisih { text-align: right; flex: none; }
+.closing-selisih .k { font-size: 11px; color: var(--text-muted); }
+.closing-selisih .v { font-size: 16px; font-weight: 500; margin-top: 1px; }
+.closing-detail { border-top: 1px solid var(--border-subtle); margin-top: 10px; padding-top: var(--space-4); }
+
+.closing-banner {
+  display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap;
+  padding: 10px var(--space-5);
+  background: color-mix(in oklab, var(--tone-amber) 10%, var(--surface));
+  border: 1px solid color-mix(in oklab, var(--tone-amber) 35%, var(--border));
+  border-radius: var(--radius-surface);
+  color: var(--tone-amber);
+  font-size: 14px;
+}
+.closing-banner > span { color: var(--foreground); }
 .va-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--space-3) var(--space-4); margin-top: var(--space-4); }
 .va-stat .k { font-size: 12px; color: var(--text-muted); }
 .va-stat .v { font-size: 14px; font-weight: 500; margin-top: 2px; }
