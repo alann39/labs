@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Plus, Wallet } from "lucide-react";
+import { Link2, Pencil, Plus, Sparkles, Trash2, Unlink, Wallet } from "lucide-react";
 import { Button } from "@/components/arc/button/button";
 import { Select } from "@/components/arc/select/select";
 import { Textarea } from "@/components/arc/textarea/textarea";
@@ -14,8 +14,10 @@ import { Alert } from "@/components/arc/alert/alert";
 import { EmptyState } from "@/components/arc/empty-state/empty-state";
 import { PageHead } from "../components/PageHead";
 import { ConfirmDelete } from "../components/ConfirmDelete";
-import { fmtNum, fmtRp, fmtTglPanjang, toISO } from "../format";
-import { useStore, MASUK_JENIS_LABEL, type DanaMasukRecord } from "../store";
+import { fmtNum, fmtRp, fmtTglPanjang, fmtTglSingkat, toISO } from "../format";
+import { useStore, MASUK_JENIS_LABEL, type DanaMasukRecord, type LpjRecord } from "../store";
+import { RecordDetailDialog, type DetailTarget } from "../components/RecordDetailDialog";
+import { LpjFormDialog } from "./LpjView";
 
 const parseISO = (iso: string) => {
   const [y, m, d] = iso.split("-").map(Number);
@@ -73,6 +75,9 @@ export function MasukFormDialog({
     () =>
       month.lpj
         .filter((r) => r.vaId === vaId && r.jenis === "reguler")
+        // LPJ Closing tidak boleh diisi kembali manual — terisi otomatis dari isi awal
+        // bulan berikutnya. Pengecualian: LPJ yang sudah tertaut ke catatan yang sedang diedit.
+        .filter((r) => !r.lpjClosing || r.id === editing?.lpjId)
         .filter((r) => !month.masuk.some((x) => x.jenis === "kembali" && x.lpjId === r.id) || r.id === editing?.lpjId)
         .map((r) => ({ value: r.id, label: `${r.no} · ${fmtTglPanjang(r.tanggal)} · ${fmtRp(r.nominal)}` })),
     [month, vaId, editing],
@@ -183,6 +188,9 @@ export function MasukFormDialog({
 type Row = {
   id: string; tanggal: string; va: string; jenis: string; nominal: number;
   tautan: string; keterangan: string; terkunci: boolean;
+  tautanTipe: "link" | "unlink" | "none"; tautanSingkat: string;
+  /** Id LPJ di ujung tautan (untuk dialog detail saat sel diklik). */
+  tautanRecordId?: string;
 };
 
 export function DanaMasukView({ onHelp }: { onHelp: () => void }) {
@@ -192,6 +200,15 @@ export function DanaMasukView({ onHelp }: { onHelp: () => void }) {
   const [editing, setEditing] = useState<DanaMasukRecord | null>(null);
   const [hapus, setHapus] = useState<Row | null>(null);
   const [gagal, setGagal] = useState<string | null>(null);
+  const [detail, setDetail] = useState<DetailTarget | null>(null);
+  const [editLpj, setEditLpj] = useState<LpjRecord | null>(null);
+  const [lpjFormOpen, setLpjFormOpen] = useState(false);
+
+  const editDariDetail = (t: DetailTarget) => {
+    setDetail(null);
+    if (t.kind === "lpj") { setEditLpj(t.record); setLpjFormOpen(true); }
+    else { setEditing(t.record); setFormOpen(true); }
+  };
 
   const rows: Row[] = useMemo(
     () =>
@@ -200,19 +217,38 @@ export function DanaMasukView({ onHelp }: { onHelp: () => void }) {
         .map((r) => {
           const va = month.vas.find((v) => v.id === r.vaId);
           let tautan: string;
+          let tautanTipe: Row["tautanTipe"] = "none";
+          let tautanSingkat = "";
+          let tautanRecordId: string | undefined;
           if (r.jenis === "kembali") {
             const target = r.lpjId ? month.lpj.find((x) => x.id === r.lpjId) : undefined;
             tautan = target ? `Untuk ${target.no}` : "Tanpa tautan LPJ";
+            if (target) {
+              tautanTipe = "link";
+              tautanSingkat = target.no;
+              tautanRecordId = target.id;
+            } else {
+              tautanTipe = "unlink";
+            }
           } else if (r.jenis === "khusus") {
             const anak = month.lpj.find((x) => x.jenis === "khusus" && x.khususDariMasukId === r.id);
             tautan = anak ? `Sudah ada ${anak.no}` : "Belum ada LPJ khusus";
+            if (anak) {
+              tautanTipe = "link";
+              tautanSingkat = anak.no;
+              tautanRecordId = anak.id;
+            } else {
+              tautanTipe = "unlink";
+            }
           } else {
             tautan = "Saldo normal penuh";
+            tautanSingkat = "Saldo normal";
           }
           const ket = [r.keterangan, r.referensiNama ? `Ref: ${r.referensiNama}` : ""].filter(Boolean).join(" · ");
           return {
             id: r.id, tanggal: r.tanggal, va: va?.nama ?? r.vaId, jenis: r.jenis,
             nominal: r.nominal, tautan, keterangan: ket, terkunci: va?.closingSelesai ?? false,
+            tautanTipe, tautanSingkat, tautanRecordId,
           };
         })
         .sort((a, b) => a.tanggal.localeCompare(b.tanggal)),
@@ -258,20 +294,72 @@ export function DanaMasukView({ onHelp }: { onHelp: () => void }) {
             rowKey="id"
             defaultSort={{ key: "tanggal", direction: "asc" }}
             columns={[
-              { key: "tanggal", label: "Tanggal", render: (v) => fmtTglPanjang(v as string) },
+              { key: "tanggal", label: "Tanggal", render: (v) => <span title={fmtTglPanjang(v as string)}>{fmtTglSingkat(v as string)}</span> },
               { key: "va", label: "VA" },
-              { key: "jenis", label: "Jenis", render: (v) => <Badge tone={v === "khusus" ? "info" : v === "kembali" ? "success" : "neutral"}>{MASUK_JENIS_LABEL[v as DanaMasukRecord["jenis"]]}</Badge> },
-              { key: "nominal", label: "Nominal", numeric: true, render: (v) => <span className="num">{fmtNum(v as number)}</span> },
-              { key: "tautan", label: "Tautan" },
-              { key: "keterangan", label: "Keterangan" },
               {
-                key: "aksi", label: "Aksi", sortable: false,
+                key: "jenis", label: "Jenis",
+                render: (v) =>
+                  v === "khusus" ? (
+                    <Badge size="sm" color="violet" icon={<Sparkles size={12} strokeWidth={1.75} />}>Khusus</Badge>
+                  ) : v === "kembali" ? (
+                    <Badge size="sm" tone="success">Kembali</Badge>
+                  ) : (
+                    <Badge size="sm" tone="neutral">Awal</Badge>
+                  ),
+              },
+              { key: "nominal", label: "Nominal", numeric: true, render: (v) => <span className="num">{fmtNum(v as number)}</span> },
+              {
+                key: "tautan", label: "Tautan",
+                render: (_v, row) => {
+                  const r = row as unknown as Row;
+                  if (r.tautanTipe === "link") {
+                    const isiSel = (
+                      <>
+                        <Link2 size={14} strokeWidth={1.75} aria-hidden="true" />
+                        {r.tautanSingkat}
+                      </>
+                    );
+                    if (r.tautanRecordId) {
+                      const rec = month.lpj.find((x) => x.id === r.tautanRecordId);
+                      if (rec) {
+                        return (
+                          <button type="button" className="link-cell" title={`${r.tautan} — klik untuk detail`} onClick={() => setDetail({ kind: "lpj", record: rec })}>
+                            {isiSel}
+                          </button>
+                        );
+                      }
+                    }
+                    return <span className="link-cell" title={r.tautan}>{isiSel}</span>;
+                  }
+                  if (r.tautanTipe === "unlink") {
+                    return (
+                      <span className="link-cell dim" title={r.tautan}>
+                        <Unlink size={14} strokeWidth={1.75} aria-hidden="true" />
+                      </span>
+                    );
+                  }
+                  return <span style={{ color: "var(--text-muted)" }} title={r.tautan}>{r.tautanSingkat}</span>;
+                },
+              },
+              {
+                key: "keterangan", label: "Keterangan",
+                render: (v) => {
+                  const t = (v as string) || "";
+                  return t ? <span className="cell-truncate" title={t}>{t}</span> : <span style={{ color: "var(--text-muted)" }}>–</span>;
+                },
+              },
+              {
+                key: "aksi", label: "", sortable: false,
                 render: (_v, row) => {
                   const r = row as unknown as Row;
                   return (
                     <span className="row-actions">
-                      <Button size="sm" variant="secondary" disabled={r.terkunci} onClick={() => { setEditing(recordById(r.id)); setFormOpen(true); }}>Edit</Button>
-                      <Button size="sm" variant="ghost" disabled={r.terkunci} onClick={() => { setGagal(null); setHapus(r); }}>Hapus</Button>
+                      <button type="button" className="row-icon-btn" disabled={r.terkunci} aria-label={`Edit dana masuk ${r.va}`} title="Edit" onClick={() => { setEditing(recordById(r.id)); setFormOpen(true); }}>
+                        <Pencil size={15} strokeWidth={1.75} />
+                      </button>
+                      <button type="button" className="row-icon-btn danger" disabled={r.terkunci} aria-label={`Hapus dana masuk ${r.va}`} title="Hapus" onClick={() => { setGagal(null); setHapus(r); }}>
+                        <Trash2 size={15} strokeWidth={1.75} />
+                      </button>
                     </span>
                   );
                 },
@@ -283,6 +371,12 @@ export function DanaMasukView({ onHelp }: { onHelp: () => void }) {
       <p className="footnote">Isi awal tidak bisa dibuat manual, dibuat otomatis dari closing. Menghapus pengisian kembali melepaskan tautan LPJ-nya. Dana masuk khusus yang sudah punya LPJ khusus tidak bisa dihapus.</p>
 
       <MasukFormDialog open={formOpen} onOpenChange={setFormOpen} editing={editing} />
+      <LpjFormDialog open={lpjFormOpen} onOpenChange={setLpjFormOpen} editing={editLpj} />
+      <RecordDetailDialog
+        target={detail}
+        onOpenChange={(o) => { if (!o) setDetail(null); }}
+        onEdit={editDariDetail}
+      />
       <ConfirmDelete
         open={hapus !== null}
         onOpenChange={(o) => { if (!o) setHapus(null); }}

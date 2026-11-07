@@ -1,16 +1,16 @@
 import { useMemo, useState } from "react";
-import { Info, Plus, Wallet } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, Flag, Info, Landmark, Link2, Pencil, Plus, Sparkles, Trash2, Unlink, Wallet } from "lucide-react";
 import { Button } from "@/components/arc/button/button";
 import { Select } from "@/components/arc/select/select";
 import SegmentedControl from "@/components/arc/segmented-control/segmented-control";
 import { SortableDataTable } from "@/components/arc/sortable-data-table/sortable-data-table";
-import { Badge } from "@/components/arc/badge/badge";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/arc/popover/popover";
 import { EmptyState } from "@/components/arc/empty-state/empty-state";
 import { PageHead } from "../components/PageHead";
 import { StatCell } from "../components/Stat";
 import { ConfirmDelete } from "../components/ConfirmDelete";
-import { fmtNum, fmtRp, fmtTgl, fmtTglPanjang } from "../format";
+import { RecordDetailDialog, type DetailTarget } from "../components/RecordDetailDialog";
+import { fmtNum, fmtRp, fmtTgl, fmtTglPanjang, fmtTglSingkat } from "../format";
 import {
   useStore, vaStats, khususSudahAdaLpj, type LpjRecord, type DanaMasukRecord,
 } from "../store";
@@ -25,9 +25,18 @@ type Entry = {
   tone: "success" | "warning" | "info" | "neutral";
   keterangan: string;
   tautan: string;
+  tautanTipe: "link" | "unlink" | "none" | "closing";
+  tautanSingkat: string;
+  /** Catatan di ujung tautan (untuk dialog detail saat sel tautan diklik). */
+  tautanRecordId?: string;
+  tautanTargetKind?: "lpj" | "masuk";
+  closing: boolean;
   masuk: number | null;
   lpj: number | null;
   kind: "lpj" | "masuk";
+  /** Varian chip ikon kolom Jenis: awal/kembali/khusus untuk dana masuk,
+      reguler/khusus-lpj/closing untuk LPJ. */
+  varian: "awal" | "kembali" | "khusus" | "reguler" | "khusus-lpj" | "closing";
   recordId: string;
 };
 
@@ -53,38 +62,68 @@ export function Ledger({ vaId, setVaId, go, onHelp }: { vaId: string; setVaId: (
     for (const r of month.masuk) {
       if (r.vaId !== va.id) continue;
       let tautan = "";
+      let tautanTipe: Entry["tautanTipe"] = "none";
+      let tautanSingkat = "";
+      let tautanRecordId: string | undefined;
+      let tautanTargetKind: Entry["tautanTargetKind"];
       if (r.jenis === "kembali") {
         const target = r.lpjId ? month.lpj.find((x) => x.id === r.lpjId) : undefined;
         tautan = target ? `Untuk ${target.no}` : "Tanpa tautan LPJ";
+        if (target) { tautanTipe = "link"; tautanSingkat = target.no; tautanRecordId = target.id; tautanTargetKind = "lpj"; }
+        else tautanTipe = "unlink";
       } else if (r.jenis === "khusus") {
         const anak = month.lpj.find((x) => x.khususDariMasukId === r.id);
         tautan = anak ? `Sudah ada ${anak.no}` : "Belum ada LPJ khusus";
+        if (anak) { tautanTipe = "link"; tautanSingkat = anak.no; tautanRecordId = anak.id; tautanTargetKind = "lpj"; }
+        else tautanTipe = "unlink";
       } else {
         tautan = "Saldo normal penuh";
+        tautanSingkat = "Saldo normal";
       }
       list.push({
         id: `m-${r.id}`, tanggal: r.tanggal,
         jenis: MASUK_LABEL[r.jenis], tone: MASUK_TONE[r.jenis],
         keterangan: r.keterangan ?? MASUK_LABEL[r.jenis], tautan,
-        masuk: r.nominal, lpj: null, kind: "masuk", recordId: r.id,
+        tautanTipe, tautanSingkat, tautanRecordId, tautanTargetKind, closing: false,
+        masuk: r.nominal, lpj: null, kind: "masuk", varian: r.jenis, recordId: r.id,
       });
     }
     for (const r of month.lpj) {
       if (r.vaId !== va.id) continue;
       const label = r.lpjClosing ? "LPJ Closing" : r.jenis === "khusus" ? "LPJ Khusus" : "LPJ Reguler";
       let tautan = "";
+      let tautanTipe: Entry["tautanTipe"] = "none";
+      let tautanSingkat = "";
+      let tautanRecordId: string | undefined;
+      let tautanTargetKind: Entry["tautanTargetKind"];
       if (r.jenis === "khusus") {
         const induk = month.masuk.find((x) => x.id === r.khususDariMasukId);
         tautan = induk ? `Dari pengisian khusus ${fmtTgl(induk.tanggal)}` : "Pengisian khusus";
+        if (induk) { tautanTipe = "link"; tautanSingkat = fmtTglSingkat(induk.tanggal); tautanRecordId = induk.id; tautanTargetKind = "masuk"; }
+        else tautanTipe = "unlink";
       } else {
         const isi = month.masuk.find((x) => x.jenis === "kembali" && x.lpjId === r.id);
-        tautan = isi ? `Diisi kembali ${fmtTgl(isi.tanggal)}` : "Belum diisi kembali";
+        if (isi) {
+          tautan = `Diisi kembali ${fmtTgl(isi.tanggal)}`;
+          tautanTipe = "link"; tautanSingkat = fmtTglSingkat(isi.tanggal);
+          tautanRecordId = isi.id; tautanTargetKind = "masuk";
+        } else if (r.lpjClosing) {
+          // LPJ Closing tidak perlu diisi ulang — terisi otomatis dari isi awal bulan berikutnya.
+          tautan = "LPJ closing — terisi otomatis dari isi awal bulan berikutnya";
+          tautanTipe = "closing"; tautanSingkat = "Closing";
+        } else {
+          tautan = "Belum diisi kembali";
+          tautanTipe = "unlink"; tautanSingkat = "Belum diisi";
+        }
       }
       list.push({
         id: `l-${r.id}`, tanggal: r.tanggal, jenis: label,
         tone: LPJ_TONE[r.lpjClosing ? "closing" : r.jenis],
         keterangan: `${r.no} · ${r.keterangan}`, tautan,
-        masuk: null, lpj: r.nominal, kind: "lpj", recordId: r.id,
+        tautanTipe, tautanSingkat, tautanRecordId, tautanTargetKind, closing: r.lpjClosing,
+        masuk: null, lpj: r.nominal, kind: "lpj",
+        varian: r.lpjClosing ? "closing" : r.jenis === "khusus" ? "khusus-lpj" : "reguler",
+        recordId: r.id,
       });
     }
     return list.sort((a, b) => a.tanggal.localeCompare(b.tanggal) || a.id.localeCompare(b.id));
@@ -93,6 +132,23 @@ export function Ledger({ vaId, setVaId, go, onHelp }: { vaId: string; setVaId: (
   const filtered = entries.filter((e) =>
     filter === "semua" ? true : filter === "lpj" ? e.kind === "lpj" : e.kind === "masuk",
   );
+
+  const [detail, setDetail] = useState<DetailTarget | null>(null);
+  const bukaDetail = (e: Entry) => {
+    if (!e.tautanRecordId || !e.tautanTargetKind) return;
+    if (e.tautanTargetKind === "lpj") {
+      const rec = month.lpj.find((r) => r.id === e.tautanRecordId);
+      if (rec) setDetail({ kind: "lpj", record: rec });
+    } else {
+      const rec = month.masuk.find((r) => r.id === e.tautanRecordId);
+      if (rec) setDetail({ kind: "masuk", record: rec });
+    }
+  };
+  const editDariDetail = (t: DetailTarget) => {
+    setDetail(null);
+    if (t.kind === "lpj") { setEditLpj(t.record); setLpjFormOpen(true); }
+    else { setEditMasuk(t.record); setMasukFormOpen(true); }
+  };
 
   const bukaEdit = (e: Entry) => {
     if (e.kind === "lpj") {
@@ -120,7 +176,7 @@ export function Ledger({ vaId, setVaId, go, onHelp }: { vaId: string; setVaId: (
         </Button>
       </PageHead>
 
-      <section className="card">
+      <section className="card ledger-summary">
         <div className="stat-strip five">
           <StatCell label="Saldo normal" value={va.saldoNormal} />
           <StatCell label="Total dana masuk" value={s.masuk} />
@@ -178,38 +234,114 @@ export function Ledger({ vaId, setVaId, go, onHelp }: { vaId: string; setVaId: (
             action={<Button variant="secondary" onClick={() => go("lpj")}>Input LPJ</Button>}
           />
         ) : (
+         <div className="ledger-table">
           <SortableDataTable
             caption={`Transaksi ${va.nama}`}
             rows={filtered}
             rowKey="id"
             defaultSort={{ key: "tanggal", direction: "asc" }}
             columns={[
-              { key: "tanggal", label: "Tanggal", render: (v) => fmtTglPanjang(v as string) },
-              { key: "jenis", label: "Jenis", render: (v, row) => <Badge tone={(row as unknown as Entry).tone}>{v as string}</Badge> },
-              { key: "keterangan", label: "Keterangan" },
-              { key: "tautan", label: "Tautan" },
-              { key: "masuk", label: "Masuk (Rp)", numeric: true, render: (v) => (v == null ? "–" : <span className="num">{fmtNum(v as number)}</span>) },
-              { key: "lpj", label: "LPJ (Rp)", numeric: true, render: (v) => (v == null ? "–" : <span className="num">{fmtNum(v as number)}</span>) },
+              { key: "tanggal", label: "Tanggal", width: 92, render: (v) => <span title={fmtTglPanjang(v as string)}>{fmtTglSingkat(v as string)}</span> },
               {
-                key: "aksi", label: "Aksi", sortable: false,
+                key: "jenis", label: "Jenis", width: 68,
+                render: (v, row) => {
+                  const e = row as unknown as Entry;
+                  const chip = {
+                    awal: { cls: "awal", Icon: Landmark },
+                    kembali: { cls: "masuk", Icon: ArrowDownLeft },
+                    khusus: { cls: "khusus", Icon: Sparkles },
+                    reguler: { cls: "lpj", Icon: ArrowUpRight },
+                    "khusus-lpj": { cls: "khusus", Icon: ArrowUpRight },
+                    closing: { cls: "lpj", Icon: ArrowUpRight },
+                  }[e.varian];
+                  const { Icon } = chip;
+                  return (
+                    <span className={`entry-chip ${chip.cls}`} title={v as string}>
+                      <Icon size={14} strokeWidth={1.75} aria-hidden="true" />
+                      {e.closing && <Flag size={10} strokeWidth={1.75} fill="currentColor" style={{ color: "var(--warning)" }} aria-hidden="true" />}
+                      <span className="sr-only">{v as string}</span>
+                    </span>
+                  );
+                },
+              },
+              {
+                key: "keterangan", label: "Keterangan",
+                render: (v) => {
+                  const t = (v as string) || "";
+                  return t ? <span className="cell-truncate" title={t}>{t}</span> : <span style={{ color: "var(--text-muted)" }}>–</span>;
+                },
+              },
+              {
+                key: "tautan", label: "Tautan", width: 150,
+                render: (_v, row) => {
+                  const e = row as unknown as Entry;
+                  if (e.tautanTipe === "link") {
+                    const isiSel = (
+                      <>
+                        <Link2 size={14} strokeWidth={1.75} aria-hidden="true" />
+                        <span className="link-txt">{e.tautanSingkat}</span>
+                      </>
+                    );
+                    if (e.tautanRecordId) {
+                      return (
+                        <button type="button" className="link-cell" title={`${e.tautan} — klik untuk detail`} onClick={() => bukaDetail(e)}>
+                          {isiSel}
+                        </button>
+                      );
+                    }
+                    return <span className="link-cell" title={e.tautan}>{isiSel}</span>;
+                  }
+                  if (e.tautanTipe === "unlink") {
+                    return (
+                      <span className="link-cell dim" title={e.tautan}>
+                        <Unlink size={14} strokeWidth={1.75} aria-hidden="true" />
+                        <span className="link-txt">{e.tautanSingkat}</span>
+                      </span>
+                    );
+                  }
+                  if (e.tautanTipe === "closing") {
+                    return (
+                      <span className="link-cell dim" title={e.tautan}>
+                        <Flag size={14} strokeWidth={1.75} fill="currentColor" style={{ color: "var(--warning)" }} aria-hidden="true" />
+                        <span className="link-txt">{e.tautanSingkat}</span>
+                      </span>
+                    );
+                  }
+                  return <span style={{ color: "var(--text-muted)" }} title={e.tautan}>{e.tautanSingkat}</span>;
+                },
+              },
+              { key: "masuk", label: "Masuk", numeric: true, width: 132, render: (v) => (v == null ? "–" : <span className="num">{fmtNum(v as number)}</span>) },
+              { key: "lpj", label: "LPJ", numeric: true, width: 132, render: (v) => (v == null ? "–" : <span className="num">{fmtNum(v as number)}</span>) },
+              {
+                key: "aksi", label: "", sortable: false, width: 76,
                 render: (_v, row) => {
                   const e = row as unknown as Entry;
                   return (
                     <span className="row-actions">
-                      <Button size="sm" variant="secondary" disabled={terkunci} onClick={() => bukaEdit(e)}>Edit</Button>
-                      <Button size="sm" variant="ghost" disabled={terkunci} onClick={() => { setHapusGagal(null); setHapus(e); }}>Hapus</Button>
+                      <button type="button" className="row-icon-btn" disabled={terkunci} aria-label={`Edit ${e.jenis}`} title="Edit" onClick={() => bukaEdit(e)}>
+                        <Pencil size={15} strokeWidth={1.75} />
+                      </button>
+                      <button type="button" className="row-icon-btn danger" disabled={terkunci} aria-label={`Hapus ${e.jenis}`} title="Hapus" onClick={() => { setHapusGagal(null); setHapus(e); }}>
+                        <Trash2 size={15} strokeWidth={1.75} />
+                      </button>
                     </span>
                   );
                 },
               },
             ]}
           />
+         </div>
         )}
       </section>
       <p className="footnote">Timeline gabungan LPJ dan dana masuk VA ini. Setiap pengisian kembali tertaut ke LPJ yang diisi, dan setiap LPJ khusus tertaut ke pengisian khususnya.</p>
 
       <LpjFormDialog open={lpjFormOpen} onOpenChange={setLpjFormOpen} editing={editLpj} />
       <MasukFormDialog open={masukFormOpen} onOpenChange={setMasukFormOpen} editing={editMasuk} />
+      <RecordDetailDialog
+        target={detail}
+        onOpenChange={(o) => { if (!o) setDetail(null); }}
+        onEdit={editDariDetail}
+      />
       <ConfirmDelete
         open={hapus !== null}
         onOpenChange={(o) => { if (!o) setHapus(null); }}

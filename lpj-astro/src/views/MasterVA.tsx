@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Plus } from "lucide-react";
+import { Pencil, Plus, Power, Trash2 } from "lucide-react";
 import { Button } from "@/components/arc/button/button";
 import { SortableDataTable } from "@/components/arc/sortable-data-table/sortable-data-table";
 import { Badge } from "@/components/arc/badge/badge";
@@ -74,17 +74,21 @@ export function MasterVA({ onHelp }: { onHelp: () => void }) {
             { key: "saldoNormal", label: "Saldo normal", numeric: true, render: (v) => <span className="num">{fmtNum(v as number)}</span> },
             { key: "aktif", label: "Status", render: (v) => (v ? <Badge tone="success">Aktif</Badge> : <Badge tone="neutral">Nonaktif</Badge>) },
             {
-              key: "aksi", label: "Aksi", sortable: false,
+              key: "aksi", label: "", sortable: false,
               render: (_v, row) => {
                 const r = row as unknown as Row;
                 const mv = state.masterVa.find((x) => x.id === r.id) ?? null;
                 return (
                   <span className="row-actions">
-                    <Button size="sm" variant="secondary" onClick={() => { setEditing(mv); setFormOpen(true); }}>Edit</Button>
-                    <Button size="sm" variant="ghost" onClick={() => setMasterVaAktif(r.id, !r.aktif)}>
-                      {r.aktif ? "Nonaktifkan" : "Aktifkan"}
-                    </Button>
-                    <Button size="sm" variant="ghost" disabled={r.punyaCatatan} onClick={() => setHapus(r)}>Hapus</Button>
+                    <button type="button" className="row-icon-btn" aria-label={`Edit ${r.nama}`} title="Edit" onClick={() => { setEditing(mv); setFormOpen(true); }}>
+                      <Pencil size={15} strokeWidth={1.75} />
+                    </button>
+                    <button type="button" className="row-icon-btn" aria-label={r.aktif ? `Nonaktifkan ${r.nama}` : `Aktifkan ${r.nama}`} title={r.aktif ? "Nonaktifkan" : "Aktifkan"} onClick={() => setMasterVaAktif(r.id, !r.aktif)}>
+                      <Power size={15} strokeWidth={1.75} />
+                    </button>
+                    <button type="button" className="row-icon-btn danger" disabled={r.punyaCatatan} aria-label={`Hapus ${r.nama}`} title={r.punyaCatatan ? "VA punya catatan, tidak bisa dihapus" : "Hapus"} onClick={() => setHapus(r)}>
+                      <Trash2 size={15} strokeWidth={1.75} />
+                    </button>
                   </span>
                 );
               },

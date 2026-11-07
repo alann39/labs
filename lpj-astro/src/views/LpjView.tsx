@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { FileText, Plus } from "lucide-react";
+import { FileText, Flag, Link2, Pencil, Plus, Sparkles, Trash2, Unlink } from "lucide-react";
 import { Button } from "@/components/arc/button/button";
 import { Select } from "@/components/arc/select/select";
 import { Textarea } from "@/components/arc/textarea/textarea";
@@ -13,8 +13,10 @@ import { Alert } from "@/components/arc/alert/alert";
 import { EmptyState } from "@/components/arc/empty-state/empty-state";
 import { PageHead } from "../components/PageHead";
 import { ConfirmDelete } from "../components/ConfirmDelete";
-import { fmtNum, fmtRp, fmtTglPanjang, toISO } from "../format";
-import { useStore, lpjSudahDiisi, type LpjRecord } from "../store";
+import { fmtNum, fmtRp, fmtTglPanjang, fmtTglSingkat, toISO } from "../format";
+import { useStore, lpjSudahDiisi, type LpjRecord, type DanaMasukRecord } from "../store";
+import { RecordDetailDialog, type DetailTarget } from "../components/RecordDetailDialog";
+import { MasukFormDialog } from "./DanaMasukView";
 
 const parseISO = (iso: string) => {
   const [y, m, d] = iso.split("-").map(Number);
@@ -165,6 +167,9 @@ export function LpjFormDialog({
 type Row = {
   id: string; tanggal: string; no: string; va: string; vaId: string;
   jenis: string; nominal: number; status: string; keterangan: string; terkunci: boolean;
+  tautanTipe: "link" | "unlink" | "none" | "closing"; tautanSingkat: string; tautanPenuh: string;
+  /** Id DanaMasuk di ujung tautan (untuk dialog detail saat sel diklik). */
+  tautanRecordId?: string;
 };
 
 export function LpjView({ onHelp }: { onHelp: () => void }) {
@@ -173,6 +178,15 @@ export function LpjView({ onHelp }: { onHelp: () => void }) {
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<LpjRecord | null>(null);
   const [hapus, setHapus] = useState<Row | null>(null);
+  const [detail, setDetail] = useState<DetailTarget | null>(null);
+  const [editMasuk, setEditMasuk] = useState<DanaMasukRecord | null>(null);
+  const [masukFormOpen, setMasukFormOpen] = useState(false);
+
+  const editDariDetail = (t: DetailTarget) => {
+    setDetail(null);
+    if (t.kind === "masuk") { setEditMasuk(t.record); setMasukFormOpen(true); }
+    else { setEditing(t.record); setFormOpen(true); }
+  };
 
   const rows: Row[] = useMemo(
     () =>
@@ -181,16 +195,45 @@ export function LpjView({ onHelp }: { onHelp: () => void }) {
         .map((r) => {
           const va = month.vas.find((v) => v.id === r.vaId);
           let status: string;
+          let tautanTipe: Row["tautanTipe"] = "none";
+          let tautanSingkat = "";
+          let tautanPenuh = "";
+          let tautanRecordId: string | undefined;
           if (r.jenis === "khusus") {
             const induk = month.masuk.find((x) => x.id === r.khususDariMasukId);
             status = induk ? `Pengisian khusus ${fmtTglPanjang(induk.tanggal)}` : "Pengisian khusus";
+            tautanPenuh = status;
+            if (induk) {
+              tautanTipe = "link";
+              tautanSingkat = fmtTglSingkat(induk.tanggal);
+              tautanRecordId = induk.id;
+            } else {
+              tautanTipe = "unlink";
+            }
+          } else if (lpjSudahDiisi(month, r.id)) {
+            const isi = month.masuk.find((x) => x.jenis === "kembali" && x.lpjId === r.id);
+            status = "Sudah diisi kembali";
+            tautanTipe = "link";
+            tautanSingkat = "Terisi";
+            tautanPenuh = isi ? `Sudah diisi kembali ${fmtTglPanjang(isi.tanggal)}` : status;
+            tautanRecordId = isi?.id;
+          } else if (r.lpjClosing) {
+            // LPJ Closing tidak perlu diisi ulang — terisi otomatis dari isi awal bulan berikutnya.
+            status = "LPJ closing — terisi otomatis dari isi awal bulan berikutnya";
+            tautanTipe = "closing";
+            tautanSingkat = "Closing";
+            tautanPenuh = status;
           } else {
-            status = lpjSudahDiisi(month, r.id) ? "Sudah diisi kembali" : "Belum diisi kembali";
+            status = "Belum diisi kembali";
+            tautanTipe = "unlink";
+            tautanSingkat = "Belum diisi";
+            tautanPenuh = status;
           }
           return {
             id: r.id, tanggal: r.tanggal, no: r.no, va: va?.nama ?? r.vaId, vaId: r.vaId,
             jenis: r.jenis, nominal: r.nominal, status, keterangan: r.keterangan,
             terkunci: va?.closingSelesai ?? false,
+            tautanTipe, tautanSingkat, tautanPenuh, tautanRecordId,
           };
         })
         .sort((a, b) => a.tanggal.localeCompare(b.tanggal)),
@@ -230,33 +273,93 @@ export function LpjView({ onHelp }: { onHelp: () => void }) {
             rowKey="id"
             defaultSort={{ key: "tanggal", direction: "asc" }}
             columns={[
-              { key: "tanggal", label: "Tanggal", render: (v) => fmtTglPanjang(v as string) },
+              { key: "tanggal", label: "Tanggal", render: (v) => <span title={fmtTglPanjang(v as string)}>{fmtTglSingkat(v as string)}</span> },
               { key: "no", label: "No. LPJ" },
               { key: "va", label: "VA" },
               {
                 key: "jenis", label: "Jenis",
                 render: (v, row) => {
-                  const r = row as unknown as Row & { lpjClosing?: boolean };
+                  const r = row as unknown as Row;
                   const rec = recordById(r.id);
                   return (
                     <span className="row-actions">
-                      <Badge tone={v === "khusus" ? "info" : "neutral"}>{v === "khusus" ? "Khusus" : "Reguler"}</Badge>
-                      {rec?.lpjClosing && <Badge tone="success">LPJ Closing</Badge>}
+                      {v === "khusus" ? (
+                        <Badge size="sm" color="violet" icon={<Sparkles size={12} strokeWidth={1.75} />}>Khusus</Badge>
+                      ) : (
+                        <Badge size="sm" tone="neutral">Reguler</Badge>
+                      )}
+                      {rec?.lpjClosing && (
+                        <span title="LPJ Closing" style={{ color: "var(--warning)", display: "inline-flex" }}>
+                          <Flag size={14} strokeWidth={1.75} fill="currentColor" aria-hidden="true" />
+                          <span className="sr-only">LPJ Closing</span>
+                        </span>
+                      )}
                     </span>
                   );
                 },
               },
               { key: "nominal", label: "Nominal", numeric: true, render: (v) => <span className="num">{fmtNum(v as number)}</span> },
-              { key: "status", label: "Status isi kembali" },
-              { key: "keterangan", label: "Keterangan" },
               {
-                key: "aksi", label: "Aksi", sortable: false,
+                key: "status", label: "Isi kembali",
+                render: (_v, row) => {
+                  const r = row as unknown as Row;
+                  if (r.tautanTipe === "link") {
+                    const isiSel = (
+                      <>
+                        <Link2 size={14} strokeWidth={1.75} aria-hidden="true" />
+                        {r.tautanSingkat}
+                      </>
+                    );
+                    if (r.tautanRecordId) {
+                      const rec = month.masuk.find((x) => x.id === r.tautanRecordId);
+                      if (rec) {
+                        return (
+                          <button type="button" className="link-cell" title={`${r.tautanPenuh} — klik untuk detail`} onClick={() => setDetail({ kind: "masuk", record: rec })}>
+                            {isiSel}
+                          </button>
+                        );
+                      }
+                    }
+                    return <span className="link-cell" title={r.tautanPenuh}>{isiSel}</span>;
+                  }
+                  if (r.tautanTipe === "closing") {
+                    return (
+                      <span className="link-cell dim" title={r.tautanPenuh}>
+                        <Flag size={14} strokeWidth={1.75} fill="currentColor" style={{ color: "var(--warning)" }} aria-hidden="true" />
+                        {r.tautanSingkat}
+                      </span>
+                    );
+                  }
+                  if (r.tautanTipe === "unlink") {
+                    return (
+                      <span className="link-cell dim" title={r.tautanPenuh}>
+                        <Unlink size={14} strokeWidth={1.75} aria-hidden="true" />
+                        {r.tautanSingkat}
+                      </span>
+                    );
+                  }
+                  return <span style={{ color: "var(--text-muted)" }} title={r.tautanPenuh}>{r.tautanSingkat}</span>;
+                },
+              },
+              {
+                key: "keterangan", label: "Keterangan",
+                render: (v) => {
+                  const t = (v as string) || "";
+                  return t ? <span className="cell-truncate" title={t}>{t}</span> : <span style={{ color: "var(--text-muted)" }}>–</span>;
+                },
+              },
+              {
+                key: "aksi", label: "", sortable: false,
                 render: (_v, row) => {
                   const r = row as unknown as Row;
                   return (
                     <span className="row-actions">
-                      <Button size="sm" variant="secondary" disabled={r.terkunci} onClick={() => { setEditing(recordById(r.id)); setFormOpen(true); }}>Edit</Button>
-                      <Button size="sm" variant="ghost" disabled={r.terkunci} onClick={() => setHapus(r)}>Hapus</Button>
+                      <button type="button" className="row-icon-btn" disabled={r.terkunci} aria-label={`Edit ${r.no}`} title="Edit" onClick={() => { setEditing(recordById(r.id)); setFormOpen(true); }}>
+                        <Pencil size={15} strokeWidth={1.75} />
+                      </button>
+                      <button type="button" className="row-icon-btn danger" disabled={r.terkunci} aria-label={`Hapus ${r.no}`} title="Hapus" onClick={() => setHapus(r)}>
+                        <Trash2 size={15} strokeWidth={1.75} />
+                      </button>
                     </span>
                   );
                 },
@@ -268,6 +371,12 @@ export function LpjView({ onHelp }: { onHelp: () => void }) {
       <p className="footnote">Menghapus LPJ melepaskan tautan pengisian kembali yang menunjuk ke LPJ ini. Catatan pada VA yang sudah closing terkunci.</p>
 
       <LpjFormDialog open={formOpen} onOpenChange={setFormOpen} editing={editing} />
+      <MasukFormDialog open={masukFormOpen} onOpenChange={setMasukFormOpen} editing={editMasuk} />
+      <RecordDetailDialog
+        target={detail}
+        onOpenChange={(o) => { if (!o) setDetail(null); }}
+        onEdit={editDariDetail}
+      />
       <ConfirmDelete
         open={hapus !== null}
         onOpenChange={(o) => { if (!o) setHapus(null); }}

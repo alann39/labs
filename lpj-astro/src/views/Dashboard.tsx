@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import * as XLSX from "xlsx";
-import { CircleCheck, Download, Info, Plus } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Clock, Download, Flag, Info, Plus } from "lucide-react";
 import { Button } from "@/components/arc/button/button";
 import SegmentedControl from "@/components/arc/segmented-control/segmented-control";
 import { SortableDataTable } from "@/components/arc/sortable-data-table/sortable-data-table";
@@ -8,17 +8,51 @@ import { Badge } from "@/components/arc/badge/badge";
 import { SearchField } from "@/components/arc/search-field/search-field";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/arc/popover/popover";
 import { Alert } from "@/components/arc/alert/alert";
-import { EmptyState } from "@/components/arc/empty-state/empty-state";
 import { PageHead } from "../components/PageHead";
+import { FollowUpBlock, type FollowUpItem } from "../components/FollowUpBlock";
 import { StatCard } from "../components/Stat";
 import { GroupedChart, type ChartGroup } from "../components/GroupedChart";
-import { bulanSingkat, fmtNum, fmtRp, fmtTglPanjang, namaBulan } from "../format";
+import { bulanSingkat, fmtNum, fmtRp, fmtTglPanjang, fmtTglSingkat, namaBulan } from "../format";
 import {
   monthDitutup, monthTotals, useStore, vaStats, vaStatus,
   khususSudahAdaLpj, lpjSudahDiisi, statusPengembalian,
   PENGEMBALIAN_LABEL, VA_STATUS_BADGE, type VA,
 } from "../store";
 import type { View } from "../App";
+
+/** Badge status per VA versi compact: maks 2 kata + ikon status. */
+const STATUS_COMPACT: Record<string, { tone: "success" | "danger" | "warning" | "info" | "neutral"; label: string; Icon: typeof Clock }> = {
+  closing: { tone: "success", label: "Sudah closing", Icon: CheckCircle2 },
+  siap: { tone: "info", label: "Siap closing", Icon: Flag },
+  menunggu: { tone: "warning", label: "Menunggu", Icon: Clock },
+  sebagian: { tone: "warning", label: "Sebagian", Icon: Clock },
+  kurang: { tone: "danger", label: "Kelebihan LPJ", Icon: AlertTriangle },
+};
+
+/** Tombol info (i) di kartu KPI: rincian kartu tampil sebagai popover
+    berisi baris label + nilai, menggantikan teks keterangan di bawah angka. */
+function InfoRincian({ ariaLabel, rows, note }: { ariaLabel: string; rows: [string, string][]; note?: string }) {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button type="button" aria-label={ariaLabel} style={{ border: 0, background: "none", cursor: "pointer", color: "var(--text-muted)", display: "grid", placeItems: "center" }}>
+          <Info size={16} strokeWidth={1.75} />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent side="bottom" align="end">
+        <div className="pop-rows">
+          {rows.map(([k, v]) => (
+            <div className="pop-row" key={k}>
+              <span>{k}</span>
+              <span className="num">{v}</span>
+            </div>
+          ))}
+          {note && <p className="pop-note">{note}</p>}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 export function Dashboard({ go, openLedger, onHelp }: { go: (v: View) => void; openLedger: (vaId: string) => void; onHelp: () => void }) {
   const { state, month, setActiveMonth } = useStore();
@@ -64,26 +98,41 @@ export function Dashboard({ go, openLedger, onHelp }: { go: (v: View) => void; o
   }, [month]);
 
   const tindakLanjut = useMemo(() => {
-    const items: Array<{ id: string; teks: string }> = [];
+    const items: FollowUpItem[] = [];
     const belumKembali = month.vas
       .map((va) => ({ va, s: vaStats(month, va) }))
       .filter(({ va, s }) => s.dk > 0 && statusPengembalian(month, va) !== "diterima")
       .sort((a, b) => b.s.dk - a.s.dk);
     for (const { va, s } of belumKembali) {
-      const sebagian = statusPengembalian(month, va) === "sebagian"
-        ? `, sudah diterima ${fmtRp(va.pengembalian.totalDiterima)}`
-        : "";
-      items.push({ id: `dk-${va.id}`, teks: `${va.nama}: selisih ${fmtRp(s.dk)} belum diterima${sebagian}.` });
+      const sebagian = statusPengembalian(month, va) === "sebagian";
+      const teksSebagian = sebagian ? `, sudah diterima ${fmtRp(va.pengembalian.totalDiterima)}` : "";
+      items.push({
+        id: `dk-${va.id}`, jenis: "dk", view: "closing",
+        nama: va.nama, nominal: s.dk,
+        diterima: sebagian ? va.pengembalian.totalDiterima : undefined,
+        teks: `${va.nama}: selisih ${fmtRp(s.dk)} belum diterima${teksSebagian}.`,
+      });
     }
-    const lpjBelum = month.lpj.filter((r) => r.jenis === "reguler" && !lpjSudahDiisi(month, r.id));
+    // LPJ Closing TIDAK dihitung perlu diisi ulang — terisi otomatis dari isi awal
+    // bulan berikutnya (saldo normal penuh), jadi dikecualikan dari agregat ini.
+    const lpjBelum = month.lpj.filter((r) => r.jenis === "reguler" && !r.lpjClosing && !lpjSudahDiisi(month, r.id));
     if (lpjBelum.length > 0) {
       const tertua = lpjBelum.reduce((a, b) => (a.tanggal <= b.tanggal ? a : b));
-      items.push({ id: "lpj-belum", teks: `${lpjBelum.length} LPJ reguler belum diisi kembali, tertua ${tertua.no} tanggal ${fmtTglPanjang(tertua.tanggal)}.` });
+      items.push({
+        id: "lpj-belum", jenis: "lpj", view: "masuk",
+        nama: "Pengisian kembali LPJ", jumlah: lpjBelum.length,
+        kanan: `Tertua ${tertua.no} · ${fmtTglSingkat(tertua.tanggal)}`,
+        teks: `${lpjBelum.length} LPJ reguler belum diisi kembali, tertua ${tertua.no} tanggal ${fmtTglPanjang(tertua.tanggal)}.`,
+      });
     }
     for (const r of month.masuk) {
       if (r.jenis === "khusus" && !khususSudahAdaLpj(month, r.id)) {
         const va = month.vas.find((v) => v.id === r.vaId);
-        items.push({ id: `khusus-${r.id}`, teks: `${va?.nama ?? r.vaId}: pengisian khusus ${fmtRp(r.nominal)} tanggal ${fmtTglPanjang(r.tanggal)} belum ada LPJ khusus.` });
+        items.push({
+          id: `khusus-${r.id}`, jenis: "khusus", view: "masuk",
+          nama: va?.nama ?? r.vaId, nominal: r.nominal, tanggal: r.tanggal,
+          teks: `${va?.nama ?? r.vaId}: pengisian khusus ${fmtRp(r.nominal)} tanggal ${fmtTglPanjang(r.tanggal)} belum ada LPJ khusus.`,
+        });
       }
     }
     return items;
@@ -150,29 +199,54 @@ export function Dashboard({ go, openLedger, onHelp }: { go: (v: View) => void; o
         <StatCard
           label="Wajib dikembalikan"
           value={totals.dkPositif}
-          context={`Sudah diterima Rp ${fmtNum(totals.diterima)} · belum diterima Rp ${fmtNum(totals.belumDiterima)}`}
           action={
-            <Popover>
-              <PopoverTrigger asChild>
-                <button type="button" aria-label="Penjelasan dana dikembalikan" style={{ border: 0, background: "none", cursor: "pointer", color: "var(--text-muted)", display: "grid", placeItems: "center" }}>
-                  <Info size={16} strokeWidth={1.75} />
-                </button>
-              </PopoverTrigger>
-              <PopoverContent side="bottom" align="end">
-                <div className="pop-rows">
-                  <div className="pop-row total" style={{ borderTop: 0, paddingTop: 0 }}>
-                    <span>Selisih per VA</span>
-                    <span className="num">Total masuk − total LPJ − sisa di bank</span>
-                  </div>
-                  <p className="pop-note">Total wajib dikembalikan hanya menjumlahkan VA berselisih positif. VA minus menutup kekurangannya secara terpisah, tidak mengurangi total.</p>
-                </div>
-              </PopoverContent>
-            </Popover>
+            <InfoRincian
+              ariaLabel="Rincian wajib dikembalikan"
+              rows={[
+                ["Sudah diterima", fmtRp(totals.diterima)],
+                ["Belum diterima", fmtRp(totals.belumDiterima)],
+              ]}
+              note="Total wajib dikembalikan hanya menjumlahkan VA berselisih positif. VA minus menutup kekurangannya secara terpisah, tidak mengurangi total."
+            />
           }
         />
-        <StatCard label="Total LPJ disetujui" value={totals.lpj} context={`Reguler Rp ${fmtNum(totals.lpjReguler)} · khusus Rp ${fmtNum(totals.lpjKhusus)}`} />
-        <StatCard label="Total dana masuk" value={totals.masuk} context={`Awal Rp ${fmtNum(totals.masukAwal)} · kembali Rp ${fmtNum(totals.masukKembali)} · khusus Rp ${fmtNum(totals.masukKhusus)}`} />
-        <StatCard label="Sisa saldo di bank" value={totals.sisa} context={`Sisa sudah diinput untuk ${sisaTerinput} dari ${month.vas.length} VA`} />
+        <StatCard
+          label="Total LPJ disetujui"
+          value={totals.lpj}
+          action={
+            <InfoRincian
+              ariaLabel="Rincian total LPJ disetujui"
+              rows={[
+                ["Reguler", fmtRp(totals.lpjReguler)],
+                ["Khusus", fmtRp(totals.lpjKhusus)],
+              ]}
+            />
+          }
+        />
+        <StatCard
+          label="Total dana masuk"
+          value={totals.masuk}
+          action={
+            <InfoRincian
+              ariaLabel="Rincian total dana masuk"
+              rows={[
+                ["Awal", fmtRp(totals.masukAwal)],
+                ["Kembali", fmtRp(totals.masukKembali)],
+                ["Khusus", fmtRp(totals.masukKhusus)],
+              ]}
+            />
+          }
+        />
+        <StatCard
+          label="Sisa saldo di bank"
+          value={totals.sisa}
+          action={
+            <InfoRincian
+              ariaLabel="Rincian sisa saldo di bank"
+              rows={[["Sudah diinput", `${sisaTerinput} dari ${month.vas.length} VA`]]}
+            />
+          }
+        />
       </div>
 
       <section className="card">
@@ -219,18 +293,41 @@ export function Dashboard({ go, openLedger, onHelp }: { go: (v: View) => void; o
           columns={[
             {
               key: "nama", label: "VA",
-              render: (v, row) => (
-                <span>
-                  <span>{v as string}</span>
-                  <span className="cell-sub">Saldo normal {fmtRp((row as { normal: number }).normal)}</span>
-                </span>
-              ),
+              render: (v, row) => {
+                const normal = (row as { normal: number }).normal;
+                return (
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                    <span>{v as string}</span>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <button type="button" aria-label={`Info saldo normal ${v as string}`} style={{ border: 0, background: "none", cursor: "pointer", color: "var(--text-muted)", display: "grid", placeItems: "center", padding: 2 }}>
+                          <Info size={14} strokeWidth={1.75} />
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent side="bottom" align="start">
+                        <div className="pop-rows">
+                          <div className="pop-row">
+                            <span>Saldo normal</span>
+                            <span className="num">{fmtRp(normal)}</span>
+                          </div>
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                  </span>
+                );
+              },
             },
             { key: "lpj", label: "Total LPJ", numeric: true, render: (v) => <span className="num">{fmtNum(v as number)}</span> },
             { key: "masuk", label: "Total dana masuk", numeric: true, render: (v) => <span className="num">{fmtNum(v as number)}</span> },
             { key: "sisa", label: "Sisa di bank", numeric: true, render: (v) => <span className="num">{fmtNum(v as number)}</span> },
             { key: "selisih", label: "Selisih", numeric: true, render: (v) => <span className="num">{fmtNum(v as number)}</span> },
-            { key: "status", label: "Status", render: (v) => { const b = VA_STATUS_BADGE[v as keyof typeof VA_STATUS_BADGE]; return <Badge tone={b.tone}>{b.label}</Badge>; } },
+            {
+              key: "status", label: "Status",
+              render: (v) => {
+                const b = STATUS_COMPACT[v as string] ?? STATUS_COMPACT.menunggu;
+                return <Badge size="sm" tone={b.tone} icon={<b.Icon size={12} strokeWidth={1.75} />}>{b.label}</Badge>;
+              },
+            },
           ]}
         />
         <div style={{ textAlign: "center", marginTop: 16 }}>
@@ -241,25 +338,7 @@ export function Dashboard({ go, openLedger, onHelp }: { go: (v: View) => void; o
         <p className="footnote" style={{ marginTop: 8 }}>{progress.closing} dari {month.vas.length} VA sudah closing bulan ini.</p>
       </section>
 
-      <section className="card">
-        <div className="card-title">Perlu tindak lanjut</div>
-        <p className="card-sub">Selisih yang belum diterima dan catatan yang belum tertaut</p>
-        {tindakLanjut.length === 0 ? (
-          <div style={{ marginTop: 16 }}>
-            <EmptyState
-              icon={<CircleCheck size={24} strokeWidth={1.75} />}
-              title="Tidak ada tindak lanjut"
-              description="Semua selisih sudah diterima dan semua catatan bulan ini sudah tertaut."
-            />
-          </div>
-        ) : (
-          <ul className="follow-list">
-            {tindakLanjut.map((item) => (
-              <li key={item.id}>{item.teks}</li>
-            ))}
-          </ul>
-        )}
-      </section>
+      <FollowUpBlock items={tindakLanjut} onNavigate={go} />
     </>
   );
 }
