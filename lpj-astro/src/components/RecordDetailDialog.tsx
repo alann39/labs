@@ -14,11 +14,12 @@ export type DetailTarget =
   | { kind: "lpj"; record: LpjRecord }
   | { kind: "masuk"; record: DanaMasukRecord };
 
-function Baris({ label, children }: { label: string; children: ReactNode }) {
+/** Satu baris grid detail: label tetap di kiri, nilai rata kiri. */
+function DetailRow({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="pop-row">
-      <span style={{ color: "var(--text-muted)" }}>{label}</span>
-      <span style={{ textAlign: "right" }}>{children}</span>
+    <div className="detail-row">
+      <span className="detail-label">{label}</span>
+      <span className="detail-value">{children}</span>
     </div>
   );
 }
@@ -50,7 +51,9 @@ function JenisMasuk({ record }: { record: DanaMasukRecord }) {
 
 /**
  * Dialog detail read-only untuk catatan yang tertaut dari sel tautan
- * (Ledger, view LPJ, view Dana Masuk). Footer: Edit (membuka form edit
+ * (Ledger, view LPJ, view Dana Masuk). Layout khusus dialog (kelas
+ * .detail-*): badge jenis di bawah judul, hero nominal, grid label dan
+ * nilai rata kiri, footer ber-divider. Footer: Edit (membuka form edit
  * catatan ini di view asal, lewat callback host) + Tutup.
  */
 export function RecordDetailDialog({
@@ -66,38 +69,53 @@ export function RecordDetailDialog({
 
   let title = "";
   let description = "";
+  let badges: ReactNode = null;
   let body: ReactNode = null;
 
   if (target?.kind === "lpj") {
     const r = target.record;
     title = r.no;
     description = "Detail catatan LPJ";
-    let status: string;
+    badges = <JenisLpj record={r} />;
+    let status: ReactNode;
     if (r.jenis === "khusus") {
       const induk = month.masuk.find((x) => x.id === r.khususDariMasukId);
-      status = induk ? `Dari pengisian khusus · ${fmtTglPanjang(induk.tanggal)}` : "Pengisian khusus";
+      status = (
+        <span className="detail-status">
+          <Badge size="sm" color="violet">Dari pengisian khusus</Badge>
+          {induk && induk.tanggal !== r.tanggal && <span className="detail-muted">{fmtTglPanjang(induk.tanggal)}</span>}
+        </span>
+      );
     } else if (lpjSudahDiisi(month, r.id)) {
       const isi = month.masuk.find((x) => x.jenis === "kembali" && x.lpjId === r.id);
-      status = isi ? `Sudah diisi kembali · ${fmtTglPanjang(isi.tanggal)}` : "Sudah diisi kembali";
+      status = (
+        <span className="detail-status">
+          <Badge size="sm" tone="success">Sudah diisi kembali</Badge>
+          {isi && isi.tanggal !== r.tanggal && <span className="detail-muted">{fmtTglPanjang(isi.tanggal)}</span>}
+        </span>
+      );
     } else if (r.lpjClosing) {
-      status = "LPJ closing — terisi otomatis dari isi awal bulan berikutnya";
+      status = (
+        <span className="detail-status">
+          <Badge size="sm" tone="neutral" icon={<Flag size={12} strokeWidth={1.75} fill="currentColor" aria-hidden="true" />}>LPJ Closing</Badge>
+        </span>
+      );
     } else {
-      status = "Belum diisi kembali";
+      status = <Badge size="sm" tone="warning">Belum diisi kembali</Badge>;
     }
     body = (
       <>
-        <Baris label="Tanggal">{fmtTglPanjang(r.tanggal)}</Baris>
-        <Baris label="VA">{va?.nama ?? r.vaId}</Baris>
-        <Baris label="Jenis"><JenisLpj record={r} /></Baris>
-        <Baris label="Nominal">{fmtRp(r.nominal)}</Baris>
-        <Baris label="Status">{status}</Baris>
-        <Baris label="Keterangan">{r.keterangan || "–"}</Baris>
+        <DetailRow label="Tanggal">{fmtTglPanjang(r.tanggal)}</DetailRow>
+        <DetailRow label="VA">{va?.nama ?? r.vaId}</DetailRow>
+        <DetailRow label="Status">{status}</DetailRow>
+        <DetailRow label="Keterangan">{r.keterangan || "–"}</DetailRow>
       </>
     );
   } else if (target?.kind === "masuk") {
     const r = target.record;
-    title = `${MASUK_JENIS_LABEL[r.jenis]} · ${fmtTglPanjang(r.tanggal)}`;
+    title = MASUK_JENIS_LABEL[r.jenis];
     description = "Detail catatan dana masuk";
+    badges = <JenisMasuk record={r} />;
     let tautan: string;
     if (r.jenis === "kembali") {
       const sasaran = r.lpjId ? month.lpj.find((x) => x.id === r.lpjId) : undefined;
@@ -106,17 +124,15 @@ export function RecordDetailDialog({
       const anak = month.lpj.find((x) => x.jenis === "khusus" && x.khususDariMasukId === r.id);
       tautan = anak ? `LPJ khusus ${anak.no}` : "Belum ada LPJ khusus";
     } else {
-      tautan = "Isi awal bulan — saldo normal penuh";
+      tautan = "Isi awal bulan, saldo normal penuh";
     }
     body = (
       <>
-        <Baris label="Tanggal">{fmtTglPanjang(r.tanggal)}</Baris>
-        <Baris label="VA">{va?.nama ?? r.vaId}</Baris>
-        <Baris label="Jenis"><JenisMasuk record={r} /></Baris>
-        <Baris label="Nominal">{fmtRp(r.nominal)}</Baris>
-        <Baris label="Tautan">{tautan}</Baris>
-        {r.jenis === "khusus" && r.referensiNama && <Baris label="Referensi">{r.referensiNama}</Baris>}
-        <Baris label="Keterangan">{r.keterangan || "–"}</Baris>
+        <DetailRow label="Tanggal">{fmtTglPanjang(r.tanggal)}</DetailRow>
+        <DetailRow label="VA">{va?.nama ?? r.vaId}</DetailRow>
+        <DetailRow label="Tautan">{tautan}</DetailRow>
+        {r.jenis === "khusus" && r.referensiNama && <DetailRow label="Referensi">{r.referensiNama}</DetailRow>}
+        <DetailRow label="Keterangan">{r.keterangan || "–"}</DetailRow>
       </>
     );
   }
@@ -124,14 +140,19 @@ export function RecordDetailDialog({
   return (
     <Dialog open={target !== null} onOpenChange={onOpenChange}>
       {target && (
-        <DialogContent title={title} description={description}>
-          <div className="pop-rows">{body}</div>
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
+        <DialogContent title={title} description={description} className="detail-dialog">
+          <div className="detail-badges">{badges}</div>
+          <div className="detail-hero">
+            <div className="detail-hero-label">Nominal</div>
+            <div className="detail-hero-value">{fmtRp(target.record.nominal)}</div>
+          </div>
+          <div className="detail-grid">{body}</div>
+          <div className="detail-footer">
             {onEdit && (
               <Button
                 variant="secondary"
                 disabled={terkunci}
-                title={terkunci ? "VA sudah closing — catatan terkunci" : undefined}
+                title={terkunci ? "VA sudah closing, catatan terkunci" : undefined}
                 onClick={() => onEdit(target)}
               >
                 Edit
