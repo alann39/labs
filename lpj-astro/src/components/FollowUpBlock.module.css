@@ -1,0 +1,80 @@
+/* FollowUpBlock: recreate pola block Arc `notification-center` dengan
+   token foundation proyek (components/arc/foundation.css). Panel mandiri:
+   header ber-divider + badge jumlah, baris full-bleed ber-divider. */
+
+.block {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-surface);
+  box-shadow: var(--shadow-resting);
+  overflow: hidden;
+}
+
+.head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+  padding: var(--space-5) var(--space-6);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.headText { flex: 1; min-width: 0; }
+
+.title { font-size: 18px; font-weight: 500; }
+
+.sub { font-size: 14px; color: var(--text-secondary); margin-top: 2px; }
+
+.body { padding: var(--space-6); }
+
+.list { list-style: none; margin: 0; padding: 0; }
+
+.list li + li { border-top: 1px solid var(--border-subtle); }
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: 40px;
+  padding: 6px var(--space-6);
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--duration-standard) var(--ease-standard);
+}
+
+.row:hover { background: var(--surface-muted); }
+
+.tile {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-control);
+}
+
+.amber { background: color-mix(in oklab, var(--tone-amber) 16%, transparent); color: var(--tone-amber); }
+.violet { background: color-mix(in oklab, var(--tone-violet) 14%, transparent); color: var(--tone-violet); }
+.neutral { background: var(--accent-subtle); color: var(--accent-strong); }
+
+.main {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 1;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.name { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.meta { font-size: 12px; color: var(--text-muted); white-space: nowrap; }
+
+.amount { font-size: 14px; font-weight: 500; white-space: nowrap; }
+
+.chev { flex: none; color: var(--text-muted); }

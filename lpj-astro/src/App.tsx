@@ -1,7 +1,7 @@
 import "@/components/arc/foundation.css";
 import "./index.css";
 import { StrictMode, useEffect, useState } from "react";
-import { CircleCheck, Database, FileText, LayoutGrid, List, LogOut, Moon, Sun, Wallet } from "lucide-react";
+import { BookOpen, CircleDollarSign, FileText, Flag, LayoutDashboard, LogOut, Moon, PanelLeftClose, PanelLeftOpen, Settings2, Sun } from "lucide-react";
 import { Button } from "@/components/arc/button/button";
 import { Dialog, DialogContent, DialogClose } from "@/components/arc/dialog/dialog";
 import { StoreProvider, useStore } from "./store";
@@ -16,14 +16,16 @@ import { MasterVA } from "./views/MasterVA";
 
 export type View = "dashboard" | "ledger" | "lpj" | "masuk" | "closing" | "master";
 
-const NAV: Array<{ key: View; label: string; icon: typeof LayoutGrid }> = [
-  { key: "dashboard", label: "Dashboard", icon: LayoutGrid },
-  { key: "ledger", label: "Ledger VA", icon: List },
+const NAV: Array<{ key: View; label: string; icon: typeof LayoutDashboard }> = [
+  { key: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { key: "ledger", label: "Ledger VA", icon: BookOpen },
   { key: "lpj", label: "LPJ", icon: FileText },
-  { key: "masuk", label: "Dana Masuk", icon: Wallet },
-  { key: "closing", label: "Closing", icon: CircleCheck },
-  { key: "master", label: "Master VA", icon: Database },
+  { key: "masuk", label: "Dana Masuk", icon: CircleDollarSign },
+  { key: "closing", label: "Closing", icon: Flag },
+  { key: "master", label: "Master VA", icon: Settings2 },
 ];
+
+const SIDEBAR_KEY = "lpj-sidebar-collapsed";
 
 const HELP: Record<View, { title: string; steps?: Array<{ t: string; d: string }>; text?: string }> = {
   dashboard: {
@@ -63,12 +65,26 @@ function Shell() {
   const [vaId, setVaId] = useState("ga");
   const [helpOpen, setHelpOpen] = useState(false);
   const [dark, setDark] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
 
   useEffect(() => {
     const el = document.documentElement;
     if (dark) el.setAttribute("data-theme", "dark");
     else el.removeAttribute("data-theme");
   }, [dark]);
+
+  // Preferensi collapse dibaca setelah mount (render pertama tetap
+  // expanded, sama seperti HTML awal) lalu disimpan tiap kali berubah.
+  useEffect(() => {
+    try { setCollapsed(localStorage.getItem(SIDEBAR_KEY) === "1"); } catch { /* abaikan */ }
+  }, []);
+
+  const toggleCollapsed = () => {
+    setCollapsed((c) => {
+      try { localStorage.setItem(SIDEBAR_KEY, c ? "0" : "1"); } catch { /* abaikan */ }
+      return !c;
+    });
+  };
 
   const jumlahClosing = month.vas.filter((va) => va.closingSelesai).length;
   const help = HELP[view];
@@ -81,13 +97,23 @@ function Shell() {
 
   return (
     <div className="shell">
-      <aside className="sidebar">
+      <aside className={`sidebar${collapsed ? " collapsed" : ""}`}>
         <div className="brand">
           <div className="brand-mark">Rp</div>
-          <div>
+          <div className="brand-text">
             <div className="brand-name">LPJ kas kecil</div>
             <div className="brand-sub">Rekap per VA</div>
           </div>
+          <button
+            type="button"
+            className="icon-btn sidebar-toggle"
+            onClick={toggleCollapsed}
+            aria-label={collapsed ? "Luaskan sidebar" : "Ciutkan sidebar"}
+            aria-expanded={!collapsed}
+            title={collapsed ? "Luaskan sidebar" : "Ciutkan sidebar"}
+          >
+            {collapsed ? <PanelLeftOpen size={18} strokeWidth={1.75} /> : <PanelLeftClose size={18} strokeWidth={1.75} />}
+          </button>
         </div>
         <nav aria-label="Navigasi utama">
           {NAV.map((item) => (
@@ -97,9 +123,11 @@ function Shell() {
               className={`nav-item${view === item.key ? " active" : ""}`}
               onClick={() => setView(item.key)}
               aria-current={view === item.key ? "page" : undefined}
+              aria-label={item.label}
+              title={item.label}
             >
               <item.icon size={20} strokeWidth={1.75} />
-              {item.label}
+              <span className="nav-label">{item.label}</span>
             </button>
           ))}
         </nav>
@@ -109,17 +137,18 @@ function Shell() {
             <div className="v">{namaBulan(month.key)}</div>
             <div className="s">{jumlahClosing} dari {month.vas.length} VA sudah closing</div>
           </div>
-          <button type="button" className="nav-item" onClick={() => setDark((d) => !d)} aria-label="Ganti mode terang gelap">
+          <button type="button" className="nav-item" onClick={() => setDark((d) => !d)} aria-label="Ganti mode terang gelap" title={dark ? "Mode terang" : "Mode gelap"}>
             {dark ? <Sun size={20} strokeWidth={1.75} /> : <Moon size={20} strokeWidth={1.75} />}
-            {dark ? "Mode terang" : "Mode gelap"}
+            <span className="nav-label">{dark ? "Mode terang" : "Mode gelap"}</span>
           </button>
-          <button type="button" className="nav-item" onClick={logout} aria-label="Keluar dari aplikasi">
+          <button type="button" className="nav-item" onClick={logout} aria-label="Keluar dari aplikasi" title="Keluar">
             <LogOut size={20} strokeWidth={1.75} />
-            Keluar
+            <span className="nav-label">Keluar</span>
           </button>
           {(syncState === "saving" || (syncState === "idle" && hasSaved)) && (
-            <div style={{ fontSize: 12, color: "var(--text-muted)", padding: "2px 12px" }} role="status">
-              {syncState === "saving" ? "Menyimpan…" : "Tersimpan di server"}
+            <div className="sync-status" role="status">
+              <span className="sync-dot" aria-hidden="true" />
+              <span className="sync-text">{syncState === "saving" ? "Menyimpan…" : "Tersimpan di server"}</span>
             </div>
           )}
         </div>

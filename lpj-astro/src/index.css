@@ -224,10 +224,6 @@ button { font: inherit; }
 .progress-value { font-size: var(--text-xl); font-weight: 500; line-height: 1.15; }
 .progress-label { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
 
-.follow-list { list-style: none; margin: var(--space-2) 0 0; padding: 0; }
-.follow-list li { padding: var(--space-3) 0; border-top: 1px solid var(--border-subtle); font-size: 14px; line-height: 1.55; }
-.follow-list li:first-child { border-top: 0; }
-
 .stat-strip.five { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 
 .form-stack { display: flex; flex-direction: column; gap: var(--space-5); }
@@ -245,6 +241,149 @@ button { font: inherit; }
 .va-stat .k { font-size: 12px; color: var(--text-muted); }
 .va-stat .v { font-size: 14px; font-weight: 500; margin-top: 2px; }
 .cell-input.small { width: 150px; height: var(--control-height-sm); margin-top: 2px; }
+
+/* ---------- Tabel compact + sidebar collapse (2026-11-07) ---------- */
+
+/* Densitas tabel: satu pola bersama untuk semua SortableDataTable.
+   Selector .main table … sengaja mengalahkan CSS module tabel Arc
+   (spesifisitas lebih tinggi) tanpa menyentuh file komponen Arc.
+   Dibatasi ≥621px agar layout kartu mobile bawaan Arc tidak berubah. */
+@media (min-width: 621px) {
+  .main table th {
+    height: auto;
+    padding: 6px 12px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .main table th button {
+    height: 26px;
+    padding: 0 12px;
+    font-size: inherit;
+    letter-spacing: inherit;
+    text-transform: inherit;
+  }
+  .main table td {
+    height: auto;
+    padding: 6px 12px;
+    font-size: 13px;
+  }
+}
+
+/* Sel teks panjang: satu baris, ellipsis, teks penuh di title */
+.cell-truncate {
+  display: block;
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Tombol aksi ikon-saja di tabel */
+.row-icon-btn {
+  width: 28px; height: 28px; flex: none;
+  display: grid; place-items: center;
+  border: 0; border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-standard), color var(--duration-fast) var(--ease-standard);
+}
+@media (hover: hover) and (pointer: fine) {
+  .row-icon-btn:hover:not(:disabled) { background: var(--surface-muted); color: var(--foreground); }
+  .row-icon-btn.danger:hover:not(:disabled) { color: var(--danger); }
+}
+.row-icon-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* Sel keterkaitan: ikon tautan + teks pendek */
+.link-cell { display: inline-flex; align-items: center; gap: 6px; }
+.link-cell > svg { flex: none; }
+.link-cell.dim { color: var(--text-muted); }
+
+/* Sel tautan yang bisa diklik (membuka detail catatan tertaut):
+   tombol bergaya link — reset gaya tombol, aksen + underline saat hover. */
+button.link-cell {
+  background: none; border: 0; padding: 0; margin: 0;
+  font: inherit; color: inherit; cursor: pointer; text-align: left;
+}
+button.link-cell:hover { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+button.link-cell:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--radius-control); }
+
+/* Chip ikon jenis entri di ledger */
+.entry-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 8px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-muted);
+  color: var(--text-secondary);
+}
+.entry-chip.lpj { color: var(--danger); }
+.entry-chip.masuk { color: var(--success); }
+/* Varian pembeda: isi awal netral, khusus tint violet (token foundation,
+   pola tint yang sama dengan FollowUpBlock) */
+.entry-chip.awal { background: var(--surface-muted); color: var(--text-secondary); }
+.entry-chip.khusus { background: color-mix(in oklab, var(--tone-violet) 14%, transparent); color: var(--tone-violet); }
+
+.sr-only {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+/* Indikator simpan di kaki sidebar: teks, atau titik saat collapsed */
+.sync-status { display: flex; align-items: center; gap: var(--space-2); font-size: 12px; color: var(--text-muted); padding: 2px 12px; }
+.sync-dot { width: 8px; height: 8px; flex: none; border-radius: 50%; background: var(--success); display: none; }
+
+.sidebar-toggle { width: 32px; height: 32px; margin-left: auto; }
+
+/* Sidebar collapsed: rail ikon ±64–76px. Hanya ≥901px; di bawah itu
+   sidebar tetap panel penuh seperti build sebelumnya. */
+@media (min-width: 901px) {
+  .sidebar.collapsed { width: 76px; padding: 20px 12px; align-items: center; }
+  .sidebar.collapsed .brand { flex-direction: column; padding: 0; gap: var(--space-2); }
+  .sidebar.collapsed .brand-text { display: none; }
+  .sidebar.collapsed .sidebar-toggle { margin-left: 0; }
+  .sidebar.collapsed nav { width: 100%; align-items: center; }
+  .sidebar.collapsed .nav-item { width: 44px; justify-content: center; padding: 0; }
+  .sidebar.collapsed .nav-label { display: none; }
+  .sidebar.collapsed .sidebar-foot { width: 100%; align-items: center; }
+  .sidebar.collapsed .period-card { display: none; }
+  .sidebar.collapsed .sync-status { padding: 2px 0; justify-content: center; }
+  .sidebar.collapsed .sync-text { display: none; }
+  .sidebar.collapsed .sync-dot { display: block; }
+}
+@media (max-width: 900px) {
+  .sidebar-toggle { display: none; }
+}
+
+/* ---------- Ledger clean (2026-11-07): nol wrap, satu baris per entri ----------
+   Semua override dibatasi .ledger-table agar tabel view lain tidak berubah.
+   Penyebab wrap lama: CSS module tabel Arc memakai overflow-wrap: anywhere
+   di td (angka patah di tengah digit, tanggal/teks dua baris). Di sini layout
+   fixed + nowrap; hanya Keterangan & Tautan yang boleh overflow (ellipsis).
+   Lebar kolom eksplisit diatur lewat prop width di Ledger.tsx.
+   Dibatasi ≥621px: di bawah itu tabel Arc jadi layout kartu bawaan. */
+@media (min-width: 621px) {
+  .ledger-table table { table-layout: fixed; }
+  .ledger-table table th,
+  .ledger-table table td { white-space: nowrap; }
+  .ledger-table table td { overflow-wrap: normal; }
+  .ledger-table table th button { padding: 0 8px; }
+  .ledger-table td[data-label="Keterangan"],
+  .ledger-table td[data-label="Tautan"] { overflow: hidden; }
+  .ledger-table .cell-truncate { max-width: none; }
+  .ledger-table .link-cell { max-width: 100%; }
+  .ledger-table .link-txt { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ledger-table td[data-label="Jenis"] { padding-left: 6px; padding-right: 6px; }
+  .ledger-table .entry-chip { padding: 4px 7px; }
+  /* Tinggi baris ±36px: padding vertikal sel 5px + tombol aksi ikon 24px
+     (tombol 28px bawaan yang sebelumnya menentukan tinggi baris 41px) */
+  .ledger-table table td { padding-top: 5px; padding-bottom: 5px; }
+  .ledger-table .row-icon-btn { width: 24px; height: 24px; }
+}
+
+/* Strip ringkasan ledger: padding lebih ramping, isi & angka tetap */
+.ledger-summary { padding: var(--space-4) var(--space-6); }
+.ledger-summary .stat-cell { padding: 10px var(--space-4); }
 
 /* ---------- Responsive ---------- */
 

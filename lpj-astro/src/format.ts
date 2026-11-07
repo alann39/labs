@@ -21,6 +21,12 @@ export const fmtTgl = (iso: string) => {
 /** "2026-10-02" -> "02 Okt 2026" */
 export const fmtTglPanjang = (iso: string) => `${fmtTgl(iso)} ${iso.slice(0, 4)}`;
 
+/** "2026-10-08" -> "8 Okt" (format pendek untuk sel tabel compact) */
+export const fmtTglSingkat = (iso: string) => {
+  const parts = iso.split("-").map(Number);
+  return `${parts[2]} ${BULAN[parts[1] - 1]}`;
+};
+
 export const namaBulan = (key: string) => {
   const [y, m] = key.split("-").map(Number);
   return `${BULAN_PANJANG[m - 1]} ${y}`;
