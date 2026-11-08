@@ -104,15 +104,17 @@ function VaBlock({ va }: { va: VA }) {
           </button>
         </Tooltip>
         <span className="closing-name">{va.nama}</span>
-        <Badge size="sm" tone={badge.tone}>{badge.label}</Badge>
-        <span className="closing-meta">
-          {s.dk <= 0
-            ? "Tidak perlu pengembalian"
-            : statusP === "diterima"
-              ? `Diterima ${fmtRp(va.pengembalian.totalDiterima)}`
-              : statusP === "sebagian"
-                ? `Sebagian ${fmtRp(va.pengembalian.totalDiterima)}`
-                : "Belum diterima"}
+        <span className="closing-status">
+          <Badge size="sm" tone={badge.tone}>{badge.label}</Badge>
+          <span className="closing-meta">
+            {s.dk <= 0
+              ? "Tidak perlu pengembalian"
+              : statusP === "diterima"
+                ? `Diterima ${fmtRp(va.pengembalian.totalDiterima)}`
+                : statusP === "sebagian"
+                  ? `Sebagian ${fmtRp(va.pengembalian.totalDiterima)}`
+                  : "Belum diterima"}
+          </span>
         </span>
         <div className="spacer" />
         <div className="closing-selisih">
@@ -271,7 +273,7 @@ export function Closing({ go, onHelp }: { go: (v: View) => void; onHelp: () => v
             <div className="k">Belum diterima</div>
             <div className="v num">{fmtRp(totals.belumDiterima)}</div>
           </div>
-          <div style={{ flex: 1 }} />
+          <div className="action-spacer" style={{ flex: 1 }} />
           <div>
             <div className="k">VA sudah closing</div>
             <div className="v num">{jumlahClosing} dari {month.vas.length}</div>

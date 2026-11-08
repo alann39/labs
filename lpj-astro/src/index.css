@@ -318,6 +318,10 @@ html.theme-fade *::after {
 .closing-item + .closing-item { border-top: 1px solid var(--border-subtle); }
 .closing-main { display: flex; align-items: center; gap: var(--space-3); min-height: 40px; flex-wrap: wrap; }
 .closing-name { font-size: 15px; font-weight: 500; white-space: nowrap; }
+/* Wadah badge + meta: transparan untuk layout desktop (anak-anaknya
+   tetap item flex .closing-main seperti semula); di ≤900px wadah ini
+   menjadi cluster baris kedua (lihat blok mobile poin 7). */
+.closing-status { display: contents; }
 .closing-meta { font-size: 13px; color: var(--text-secondary); white-space: nowrap; }
 .closing-selisih { text-align: right; flex: none; }
 .closing-selisih .k { font-size: 11px; color: var(--text-muted); }
@@ -751,10 +755,20 @@ button.link-cell:focus-visible { outline: 2px solid var(--accent); outline-offse
      mobile: pengukuran pertama terjadi saat tabel masih layout
      kartu, persennya terlalu sempit dan teks nowrap tumpeng tindih
      antar kolom. Layout auto membiarkan konten menentukan lebar
-     (tabel melebar → digeser). Ledger pengecualian: lebar px
-     eksplisitnya memang didesain fixed, dipertahankan. */
+     (tabel melebar → digeser).
+     Ronde 2 (T1): pengecualian Ledger DICABUT. Di layout fixed,
+     kolom px eksplisitnya (92+68+150+132+132+76 = 650) memakan
+     hampir seluruh min-width 680px sehingga Keterangan — satu-
+     satunya kolom tanpa width — kepepet jadi 30px dan header
+     "Keterangan"/"Tautan" tercetak bertumpuk. Ledger kini ikut
+     layout auto seperti tabel lain; lebar Keterangan dijaga oleh
+     dua aturan sesudah ini. */
   .main table[data-fixed] { table-layout: auto; }
-  .main .ledger-table table[data-fixed] { table-layout: fixed; }
+  /* Keterangan Ledger: sel punya lebar minimum dan span teksnya
+     dibatasi 200px (ellipsis satu baris yang wajar, teks penuh di
+     title) → kolom terender ±190–224px, tidak lagi 1 huruf. */
+  .main .ledger-table td[data-label="Keterangan"] { min-width: 168px; }
+  .main .ledger-table .cell-truncate { max-width: 200px; }
 
   /* 4 — Target sentuh ≥40px (visual ikon tetap, hanya kotak sentuh
      yang membesar; ukuran desktop tidak berubah). */
@@ -774,17 +788,18 @@ button.link-cell:focus-visible { outline: 2px solid var(--accent); outline-offse
   /* Mata password di form login (aria-label dari messages komponen). */
   form button[aria-label="Tampilkan kata sandi"],
   form button[aria-label="Sembunyikan kata sandi"] { width: 40px; height: 40px; }
-  /* Item ToggleGroup di form: --tg-h menaikkan tinggi item sm 28→36px
+  /* Item ToggleGroup di form: --tg-h menaikkan tinggi item sm 28→40px
      hanya di dalam dialog form (pemilih lain tidak tersentuh).
      Root ToggleGroup single ber-role "radiogroup"; itemnya dikenali
-     dari atribut data-toggle-item. */
-  .form-dialog [role="group"], .form-dialog [role="radiogroup"] { --tg-h: 36px; }
-  .form-dialog [data-toggle-item] { min-height: 36px; }
+     dari atribut data-toggle-item. (Ronde 2/T6: 36→40 agar lolos
+     target sentuh ≥40px.) */
+  .form-dialog [role="group"], .form-dialog [role="radiogroup"] { --tg-h: 40px; }
+  .form-dialog [data-toggle-item] { min-height: 40px; }
 
-  /* 7 — Baris Closing jadi grid tetap: [chevron 40] [nama+meta]
-     [badge+selisih kanan]; tombol aksi jatuh ke baris penuh di
-     bawahnya. Susunan identik di semua baris berapa pun panjang
-     nama VA (nama ter-ellipsis, bukan wrap acak). */
+  /* 7 — Baris Closing jadi grid tetap: baris 1 [chevron 40] [nama
+     selebar penuh]; baris 2 [info] [badge+meta] [selisih kanan];
+     tombol aksi jatuh ke baris penuh di bawahnya. Susunan identik
+     di semua baris berapa pun panjang nama VA. */
   .closing-main {
     display: grid;
     grid-template-columns: 40px minmax(0, 1fr) auto;
@@ -794,18 +809,113 @@ button.link-cell:focus-visible { outline: 2px solid var(--accent); outline-offse
   }
   .closing-main > :first-child { grid-column: 1; grid-row: 1; }
   .closing-main .row-icon-btn { width: 40px; height: 40px; }
+  /* Ronde 2 (T2): nama mengambil seluruh lebar baris pertama
+     (col 2 sampai tepi kanan) agar nama VA terpanjang muat utuh
+     tanpa ellipsis — badge tidak lagi merebut ruang nama. */
   .closing-name {
-    grid-column: 2; grid-row: 1;
+    grid-column: 2 / -1; grid-row: 1;
     min-width: 0; overflow: hidden; text-overflow: ellipsis;
   }
-  .closing-name + * { grid-column: 3; grid-row: 1; justify-self: end; }
-  .closing-meta { grid-column: 2; grid-row: 2; white-space: normal; }
+  /* Badge pindah ke baris kedua, bergabung dengan meta dalam satu
+     cluster flex (wrap utuh per elemen bila sempit). */
+  .closing-status {
+    grid-column: 2; grid-row: 2;
+    display: flex; flex-wrap: wrap; align-items: center;
+    gap: var(--space-2); min-width: 0;
+  }
+  .closing-status > * { flex: none; }
+  .closing-meta { white-space: nowrap; }
   .closing-main > .spacer { display: none; }
   .closing-selisih { grid-column: 3; grid-row: 2; justify-self: end; }
   .closing-main > .info-btn { grid-column: 1; grid-row: 2; }
   .closing-main > button:not(.row-icon-btn):not(.info-btn) {
     grid-column: 1 / -1; width: 100%; min-height: 40px;
   }
+
+  /* 8 — FIX23 (audit ronde 2, batch 2 + 3) */
+
+  /* 8.1 (T3) Closing: grup tombol (Konfirmasi pengembalian +
+     Closing VA) hanya tampil saat item DIBUKA — dikenali dari adanya
+     .closing-detail sebagai saudara .closing-main — persis perilaku
+     desktop. Item tertutup hanya menyisakan header. */
+  .closing-main > button:not(.row-icon-btn):not(.info-btn) { display: none; }
+  .closing-item:has(> .closing-detail) .closing-main > button:not(.row-icon-btn):not(.info-btn) { display: inline-flex; }
+
+  /* 8.2 (T3) Header Closing dipadatkan jadi tumpukan tiga baris
+     teks di antara chevron dan tombol info yang merentang penuh:
+     baris 1 nama, baris 2 badge+meta, baris 3 selisih rata kanan.
+     Nama tetap selebar sisa barisnya (hasil T2 ronde 2 tidak
+     berubah: 10/10 nama utuh @390/@360); selisih sebaris
+     (39px → ±18px). Cluster status + selisih TIDAK bisa sebaris:
+     badge "Menunggu pengembalian" 141px + meta "Belum diterima"
+     92px + selisih ±122px = 355px > 278px tersedia — percobaan
+     sebaris membuat meta tertabrak nilai selisih (tertangkap QC
+     visual), jadi keduanya dipisah baris. Font badge/meta 11px
+     khusus mobile agar cluster muat sebaris di kolomnya @390. */
+  .closing-item { padding: 7px var(--space-4); }
+  .closing-main {
+    grid-template-columns: 40px minmax(0, 1fr) 40px;
+    column-gap: var(--space-2); row-gap: 2px;
+  }
+  .closing-main > :first-child { grid-row: 1 / span 3; }
+  .closing-name { grid-column: 2; grid-row: 1; }
+  .closing-status { grid-column: 2; grid-row: 2; gap: 6px; }
+  .closing-status > :first-child { font-size: 11px; }
+  .closing-meta { font-size: 11px; }
+  .closing-main > .info-btn { grid-column: 3; grid-row: 1 / span 3; }
+  .closing-selisih {
+    grid-column: 2 / -1; grid-row: 3; justify-self: end;
+    display: flex; align-items: baseline; gap: var(--space-2);
+    white-space: nowrap; line-height: 1.1;
+  }
+
+  /* 8.3 (T8b) Kolom pertama sticky dipersempit ≤160px (tabel Status
+     per VA terukur 227px): nama VA di sel pertama di-ellipsis wajar,
+     tombol (i) tetap tampil. Kolom Tanggal tabel lain (±86px) dan
+     Ledger tidak terpengaruh karena di bawah batas. */
+  .main table th:first-child, .main table td:first-child { max-width: 160px; }
+  .main table td:first-child > span > span:first-child {
+    min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+
+  /* 8.4 (T6) Sisa target sentuh <40px:
+     - jangkar (i) di label statistik 36→40px;
+     - link-cell tabel: area klik ≥40px (baris sedikit lebih tinggi
+       khusus mobile diterima brief);
+     - item menu SplitButton (Radix menu, portal) ≥44px;
+     - Save/Cancel InlineEdit Closing 28→40px (display nilai tetap
+       ringkas — aturan hanya menyasar tombol editor);
+     - input dalam field Cari VA ≥40px (cangkang sudah 44px). */
+  .stat-label button { min-width: 40px; min-height: 40px; }
+  .main table td button.link-cell { min-height: 40px; padding-top: 5px; padding-bottom: 5px; }
+  [role="menu"] [role="menuitem"] { min-height: 44px; }
+  .sisa-inline button[aria-label^="Save"],
+  .sisa-inline button[aria-label="Cancel editing"] { min-width: 40px; min-height: 40px; }
+  .main input[type="search"] { min-height: 40px; }
+
+  /* 8.5 (T10) Input di dialog form ≥40px. Elemen yang terukur
+     29×34 saat kosong pada audit adalah input MoneyInput (class
+     module _input_ di dalam _number_/_amountWrap_): overlay
+     transparan menggambar caret di atas digit cermin; tingginya
+     mengikuti line-height digit (34px). Trigger DatePicker sendiri
+     sudah 44px (tombol). min-height 40 menaikkan kotak sentuh/
+     caret tanpa mengubah tampilan digit. Input file dropzone
+     dikecualikan. */
+  .form-dialog input:not([type="file"]) { min-height: 40px; }
+
+  /* 8.6 (T12) Combobox VA Ledger: nilai terpanjang ("Procurement
+     001 · 81028901001") terklip ±3px di trigger 264px. Font nilai
+     14→13px + gap trigger 12→4px membebaskan ±21px; teks tampil
+     utuh. Hanya combobox di .head-actions (pemilih VA Ledger). */
+  .head-actions [role="combobox"] { font-size: 13px; gap: var(--space-1); }
+
+  /* 8.7 (T13) Form Edit Dana Masuk khusus Isi Awal (kelas penanda
+     .dm-edit-awal dari DanaMasukView): konten 494px vs viewport
+     468px @390×844 → pangkas gap tumpukan + grid dan tinggi
+     textarea sampai tanpa scroll. Susunan field tidak berubah. */
+  .dm-edit-awal .form-stack { gap: 10px; }
+  .dm-edit-awal .form-grid { gap: 8px; }
+  .dm-edit-awal textarea { min-height: 60px !important; }
 }
 
 @media (max-width: 640px) {
@@ -826,6 +936,54 @@ button.link-cell:focus-visible { outline: 2px solid var(--accent); outline-offse
     transform: rotate(-24deg); transform-origin: 100% 0;
   }
   .chart-bar-val { font-size: 10px; }
+
+  /* 9 — FIX23 (audit ronde 2, batch 2 + 3) — lanjutan ≤640px */
+
+  /* 9.1 (T5) Grafik: bar dirampingkan agar muat di lebar grupnya
+     (36px). Sebelumnya dua bar 24px + gap 14px = 62px meluber
+     ±13px ke kiri/kanan grup → bar pertama menutupi label gridline
+     "200" dan label nilai grup pertama ("238,7") menembus zona
+     label gridline (x ≤63). Sesudah: bar pertama mulai ±71px.
+     Label nilai seri kedua (LPJ) diangkat lebih tinggi (offset
+     26px vs 6px default — stagger) agar pasangan nilai yang
+     tingginya mirip ("238,7"/"236,2", "789,2"/"759,6") tidak
+     lagi berhimpitan sebaris. */
+  .chart-bar { width: 15px; }
+  .chart-bars { gap: 6px; }
+  .chart-bars .chart-bar:nth-child(2) .chart-bar-val { bottom: calc(100% + 26px); }
+  /* Label grup dirotasi lebih curam (-24° → -62°): lebar bbox
+     menyusut dari ±78px ke ±47px untuk "Procurement 001/002"
+     (pitch grup ±60px) → tidak ada lagi irisan antar label. */
+  .chart-group-label { transform: rotate(-62deg); }
+
+  /* 9.2 (T9) Kartu KPI dipadatkan: padding inline 24px diturunkan
+     (hanya mobile) + margin nilai diperkecil; font nilai dan
+     animasi AnimatedCounter tidak berubah. 119px → target ≤104px.
+     Strip statistik Ledger diperlakukan sama (padding sel). */
+  .grid-metrics > article { padding: 14px 20px !important; }
+  .grid-metrics .stat-value { margin-top: 4px; }
+  .ledger-summary .stat-cell { padding-top: 8px; padding-bottom: 8px; }
+
+  /* 9.3 (T4) Strip ringkasan Closing: grid 2×2 konsisten rata kiri
+     pada ≤640px (sebelumnya flex pecah @360: item ke-4 jatuh rata
+     kanan sendirian + divider menggantung di tepi). Divider dan
+     spacer disembunyikan — pemisah grid mengambil alih. */
+  .action-bar {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-4); justify-content: stretch; align-items: start;
+  }
+  .action-bar .sep, .action-bar .action-spacer { display: none; }
+
+  /* 9.4 (T8a) Isyarat geser tabel: fade gradasi di tepi kanan
+     scroller horizontal (permukaan → transparan), pointer-events
+     none secara inheren (mask tidak menangkap pointer). Kolom
+     sticky di kiri berada di zona opak mask. Hanya ≤640px: di
+     lebar ini min-width tabel 680px selalu melebihi viewport
+     sehingga fade tidak pernah menimpa tabel yang sudah muat. */
+  .main div:has(> table) {
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent 100%);
+    mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent 100%);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

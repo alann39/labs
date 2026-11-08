@@ -123,7 +123,7 @@ export function MasukFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="form-dialog" title={editing ? "Edit dana masuk" : "Input dana masuk"} description="Dana masuk yang dicatat di sini adalah dana yang sudah ditransfer ke VA.">
+      <DialogContent className={editAwal ? "form-dialog dm-edit-awal" : "form-dialog"} title={editing ? "Edit dana masuk" : "Input dana masuk"} description="Dana masuk yang dicatat di sini adalah dana yang sudah ditransfer ke VA.">
         <ScrollArea className="form-scroll" label="Formulir dana masuk">
           <div className="form-stack" style={{ paddingBottom: "var(--space-2)" }}>
             {vaTerkunci && (
