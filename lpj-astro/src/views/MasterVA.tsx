@@ -70,7 +70,7 @@ export function MasterVA({ onHelp }: { onHelp: () => void }) {
           rowKey="id"
           defaultSort={{ key: "nama", direction: "asc" }}
           columns={[
-            { key: "nama", label: "VA / departemen" },
+            { key: "nama", label: "VA / departemen", render: (v) => <span className="va-cell-name">{v as string}</span> },
             { key: "nomor", label: "No. VA" },
             { key: "grup", label: "Grup", render: (v) => <Badge tone="neutral">{v as string}</Badge> },
             { key: "saldoNormal", label: "Saldo normal", numeric: true, render: (v) => <span className="num">{fmtNum(v as number)}</span> },

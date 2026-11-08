@@ -85,7 +85,11 @@
    min-width 0 + ellipsis), dan meta kanan (kanan) pindah ke baris
    kedua selebar item, sejajar teks utama. Desktop tidak berubah. */
 @media (max-width: 640px) {
-  .row { flex-wrap: wrap; row-gap: 2px; }
+  /* FIX45 (K5): padding samping baris 24→16px membebaskan 16px untuk
+     judul — nama terpanjang "Konstruksi Rumah Pompa" (defisit terukur
+     +10px @390) tampil utuh; indent meta relatif terhadap kotak
+     konten baris sehingga tidak bergeser. */
+  .row { flex-wrap: wrap; row-gap: 2px; padding-left: var(--space-4); padding-right: var(--space-4); }
   .row > * { min-width: 0; }
   .main {
     flex-direction: column;

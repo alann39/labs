@@ -287,6 +287,7 @@ export function Dashboard({ go, openLedger, onHelp }: { go: (v: View) => void; o
             <Download size={16} strokeWidth={1.75} /> Ekspor Excel
           </Button>
         </div>
+        <div className="va-status-table">
         <SortableDataTable
           caption="Status per VA"
           rows={rows}
@@ -299,8 +300,8 @@ export function Dashboard({ go, openLedger, onHelp }: { go: (v: View) => void; o
               render: (v, row) => {
                 const normal = (row as { normal: number }).normal;
                 return (
-                  <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                    <span>{v as string}</span>
+                  <span className="va-cell">
+                    <span className="va-cell-name">{v as string}</span>
                     <Popover>
                       <PopoverTrigger asChild>
                         <button type="button" aria-label={`Info saldo normal ${v as string}`} style={{ border: 0, background: "none", cursor: "pointer", color: "var(--text-muted)", display: "grid", placeItems: "center", padding: 2 }}>
@@ -333,6 +334,7 @@ export function Dashboard({ go, openLedger, onHelp }: { go: (v: View) => void; o
             },
           ]}
         />
+        </div>
         <div style={{ textAlign: "center", marginTop: 16 }}>
           <Button variant="ghost" onClick={() => openLedger(month.vas[0].id)}>
             Lihat ledger VA

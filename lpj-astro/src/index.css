@@ -316,8 +316,22 @@ html.theme-fade *::after {
 }
 .closing-item { padding: 10px var(--space-6); }
 .closing-item + .closing-item { border-top: 1px solid var(--border-subtle); }
-.closing-main { display: flex; align-items: center; gap: var(--space-3); min-height: 40px; flex-wrap: wrap; }
-.closing-name { font-size: 15px; font-weight: 500; white-space: nowrap; }
+/* FIX45 (K3): baris desktop SATU baris — nowrap + gap dipadatkan
+   (12→8px, membebaskan ±32px) + tombol flex:none; nama menjadi
+   satu-satunya penyerap ruang (min-width:0 + ellipsis) agar gugus
+   aksi kanan tidak pernah membungkus turun dan tinggi baris
+   tertutup seragam. Mobile tidak terpengaruh: blok ≤900px
+   mengganti .closing-main menjadi grid. */
+.closing-main { display: flex; align-items: center; gap: var(--space-2); min-height: 40px; flex-wrap: nowrap; }
+.closing-main > button { flex: none; }
+.closing-name { font-size: 15px; font-weight: 500; white-space: nowrap; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* FIX45 (K3) ruang tambahan khusus desktop agar nama terpanjang
+   sedapat mungkin tetap utuh: padding panel 24→20px + padding
+   tombol aksi 12→8px membebaskan 24px untuk nama. */
+@media (min-width: 901px) {
+  .closing-item { padding-left: var(--space-5); padding-right: var(--space-5); }
+  .closing-main > button:not(.row-icon-btn):not(.info-btn) { padding-left: var(--space-2); padding-right: var(--space-2); }
+}
 /* Wadah badge + meta: transparan untuk layout desktop (anak-anaknya
    tetap item flex .closing-main seperti semula); di ≤900px wadah ini
    menjadi cluster baris kedua (lihat blok mobile poin 7). */
@@ -327,6 +341,13 @@ html.theme-fade *::after {
 .closing-selisih .k { font-size: 11px; color: var(--text-muted); }
 .closing-selisih .v { font-size: 16px; font-weight: 500; margin-top: 1px; }
 .closing-detail { border-top: 1px solid var(--border-subtle); margin-top: 10px; padding-top: var(--space-4); }
+
+/* FIX45 (K1/K2) Penahan nama VA di sel tabel: wadah flex block-level
+   selebar sel (bukan inline-flex yang melebar mengikuti konten)
+   + span nama yang bisa menyusut dan ter-ellipsis di dalam sel.
+   Dipakai Dashboard (nama + tombol info) dan Master VA (nama saja). */
+.va-cell { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.va-cell-name { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .closing-banner {
   display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap;
@@ -751,6 +772,26 @@ button.link-cell:focus-visible { outline: 2px solid var(--accent); outline-offse
     border-right: 1px solid var(--border);
   }
   .main table th:first-child { z-index: 3; }
+  /* FIX45B — isian ::before untuk sel sticky. Pada render tangkapan
+     beyond-viewport (screenshot elemen ala probe), Chromium gagal
+     melukis background-color sel sticky di posisi menempelnya: isi
+     sel (teks/ikon) terlukis di posisi tempel, latarnya tidak,
+     sehingga kolom yang sedang lewat menembus sel — terbukti di
+     tabel Status per VA: digit Selisih "5.000.000" tercetak di
+     atas ekor nama "Konstruksi Rumah Pompa" dan badge Status
+     menyembul dari balik tepi sel lebih awal menimpa tombol (i).
+     ::before (absolute, inset 0) berjangkar ke sel dan terlukis
+     menempel bersamanya di semua jalur render yang diuji;
+     z-index -1 menaruhnya di dalam konteks tumpukan sel sticky,
+     di atas kolom yang lewat namun di bawah isi sel. Warnanya
+     token yang sama persis dengan latar sel (--cell-fill, dan
+     --cell-fill diwarisi dari td sehingga state hover/selected
+     ikut) → pada render normal tidak ada beda visual apa pun. */
+  .main table th:first-child::before,
+  .main table td:first-child::before {
+    content: ""; position: absolute; inset: 0; z-index: -1;
+    background-color: var(--cell-fill);
+  }
   /* Lebar kolom hasil ukur komponen (data-fixed) tidak valid di
      mobile: pengukuran pertama terjadi saat tabel masih layout
      kartu, persennya terlalu sempit dan teks nowrap tumpeng tindih
@@ -916,6 +957,30 @@ button.link-cell:focus-visible { outline: 2px solid var(--accent); outline-offse
   .dm-edit-awal .form-stack { gap: 10px; }
   .dm-edit-awal .form-grid { gap: 8px; }
   .dm-edit-awal textarea { min-height: 60px !important; }
+
+  /* 10 — FIX45 (audit ronde 3, K1 + K2) */
+
+  /* 10.1 (K1/K2) Sel kolom pertama (sticky) menahan isinya sendiri:
+     overflow hidden memotong apa pun tepat di tepi sel — nama tidak
+     lagi meluber menimpa kolom berikutnya di tabel mana pun
+     (Dashboard, Master VA, LPJ, Dana Masuk, Ledger). */
+  .main table td:first-child { overflow: hidden; }
+
+  /* 10.2 (K1) Kolom VA tabel Status per VA (Dashboard) dilebarkan
+     dari ukuran nama terpanjang ASLI pada font tabel (canvas
+     500 14px Manrope): "Konstruksi Rumah Pompa" 162,6px + gap 6px
+     + tombol (i) 24px + padding sel 8+8px = 208,6px → kolom 210px
+     (plafon brief), semua nama tampil UTUH; ellipsis .va-cell-name
+     hanya pengaman. Tombol (i) di tabel ini: min-width 24px agar
+     nama muat utuh di dalam plafon (tinggi sentuh tetap 36px dari
+     aturan umum); aturan umum 8.3 (160px) tetap berlaku untuk
+     tabel lain. */
+  .main .va-status-table table th:first-child,
+  .main .va-status-table table td:first-child {
+    min-width: 210px; max-width: 210px;
+    padding-left: 8px; padding-right: 8px;
+  }
+  .main .va-status-table table td:first-child button { min-width: 24px; }
 }
 
 @media (max-width: 640px) {
@@ -970,9 +1035,16 @@ button.link-cell:focus-visible { outline: 2px solid var(--accent); outline-offse
      spacer disembunyikan — pemisah grid mengambil alih. */
   .action-bar {
     display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: var(--space-4); justify-content: stretch; align-items: start;
+    gap: var(--space-4); justify-content: stretch; align-items: stretch;
+    grid-auto-rows: 1fr;
   }
   .action-bar .sep, .action-bar .action-spacer { display: none; }
+  /* FIX45 (K4): tinggi sel per baris disamakan — sel jadi kolom flex
+     (label di atas, nilai menempel bawah via margin-top auto) dan
+     kedua baris grid sama tinggi (grid-auto-rows 1fr), jadi strip
+     tidak timpang walau label/nilai membungkus di viewport sempit. */
+  .action-bar > div { display: flex; flex-direction: column; min-width: 0; }
+  .action-bar .v { margin-top: auto; }
 
   /* 9.4 (T8a) Isyarat geser tabel: fade gradasi di tepi kanan
      scroller horizontal (permukaan → transparan), pointer-events
@@ -984,6 +1056,15 @@ button.link-cell:focus-visible { outline: 2px solid var(--accent); outline-offse
     -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent 100%);
     mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent 100%);
   }
+}
+
+/* FIX45 (K4): khusus viewport sangat sempit (≤375px, mencakup 360px
+   tapi TIDAK 390px) nilai strip Closing diperkecil 22→19px + nowrap
+   agar nilai terpanjang "Rp 42.204.955" tampil utuh SATU baris di
+   kolom grid ±131px. Di 390px font tetap 22px (sudah muat 1 baris,
+   tidak regresi). */
+@media (max-width: 375px) {
+  .action-bar .v { font-size: 19px; white-space: nowrap; }
 }
 
 @media (prefers-reduced-motion: reduce) {
